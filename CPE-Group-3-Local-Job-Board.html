@@ -277,8 +277,324 @@
 
 
 
-/*All other code comes here, Oyinkansola */
+<!-- ===== HOME SCREEN ===== -->
+<!-- 
+  Primary application screen displayed on initial load.
+  This screen serves as the authentication gateway and main dashboard for authenticated users.
+  Uses the "screen" and "active" classes for screen management - only one screen can be active at a time.
+-->
+<div id="home-screen" class="screen active">
+    <!-- 
+      Top App Bar - CANONICAL REFERENCE: Admin Dashboard
+      Fixed header that remains visible during scrolling.
+      Uses backdrop blur and semi-transparent background for glassmorphism effect.
+    -->
+    <header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 nav-blur border-b border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between px-4 h-16 max-w-md mx-auto">
+            <!-- 
+              Hamburger menu button for navigation drawer (mobile-first pattern).
+              Opens side navigation when clicked. Has visual feedback states (hover, active).
+            -->
+            <button id="home-hamburger-menu" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <!-- Material icon for menu -->
+                <span class="material-symbols-outlined text-[#0e121b] dark:text-white">menu</span>
+            </button>
+            <!-- Application title - centered in header -->
+            <h1 class="text-lg font-bold tracking-tight text-[#0e121b] dark:text-white">Local Job Board</h1>
+            <!-- Spacer div to maintain balanced layout (mirrors hamburger button width) -->
+            <div class="w-10"></div>
+        </div>
+    </header>
+
+    <!-- 
+      Authentication Gate - ZERO-STATE COMPLIANCE
+      Displayed when user is not authenticated. Serves as entry point to the application.
+      Implements zero-state pattern with clear call-to-action for authentication.
+    -->
+    <div id="home-auth-gate" class="max-w-md mx-auto px-4 pt-8">
+        <!-- 
+          Authentication card with consistent styling across light/dark themes.
+          Contains both sign-in and sign-up forms in tabbed interface.
+        -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 shadow-sm">
+            <!-- Header section with icon and descriptive text -->
+            <div class="flex items-center gap-3 mb-6">
+                <!-- Circular avatar container with primary color accent -->
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-primary">person</span>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-[#0e121b] dark:text-white">Find Local Opportunities</h2>
+                    <p class="text-sm text-[#4e6797] dark:text-gray-400 mt-1">Sign in or create an account to get started</p>
+                </div>
+            </div>
+            
+            <!-- 
+              Tab navigation for switching between sign-in and sign-up forms.
+              Uses border-bottom to indicate active tab (sign-in is default).
+            -->
+            <div id="auth-tabs" class="flex border-b border-gray-200 dark:border-gray-800 mb-6">
+                <!-- 
+                  Sign In tab - active by default (indicated by primary color and bottom border).
+                  Clicking this tab shows the sign-in form and hides the sign-up form.
+                -->
+                <button id="tab-signin" class="flex-1 py-3 text-center font-medium text-primary border-b-2 border-primary">Sign In</button>
+                <!-- 
+                  Sign Up tab - inactive by default.
+                  Clicking this tab shows the sign-up form and hides the sign-in form.
+                -->
+                <button id="tab-signup" class="flex-1 py-3 text-center font-medium text-[#4e6797] dark:text-gray-400">Sign Up</button>
+            </div>
+            
+            <!-- 
+              Sign In Form
+              Visible by default when authentication gate is displayed.
+              Contains email and password fields with validation.
+            -->
+            <div id="signin-form" class="space-y-4">
+                <!-- Email input field with icon and accessibility label -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Email Address</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <!-- Icon container for visual cue -->
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">mail</span>
+                        </div>
+                        <!-- 
+                          Email input field.
+                          Type="email" enables browser validation and mobile keyboard optimization.
+                          Placeholder provides example format expectation.
+                        -->
+                        <input id="signin-email" type="email" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="you@example.com"/>
+                    </div>
+                </div>
+                
+                <!-- Password input field with icon and accessibility label -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Password</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <!-- Icon container for visual cue -->
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">lock</span>
+                        </div>
+                        <!-- 
+                          Password input field.
+                          Type="password" masks input for security.
+                          Placeholder uses dots to indicate password field.
+                        -->
+                        <input id="signin-password" type="password" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="••••••••"/>
+                    </div>
+                </div>
+                
+                <!-- Submit button and error message container -->
+                <div class="pt-2">
+                    <!-- 
+                      Sign In submission button.
+                      Has hover and active state transformations for visual feedback.
+                      Clicking triggers authentication logic (handled by JavaScript).
+                    -->
+                    <button id="signin-submit" class="w-full h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                        Sign In
+                    </button>
+                    <!-- 
+                      Error message container for sign-in failures.
+                      Initially hidden, displayed when authentication fails.
+                      Contains validation or authentication error messages.
+                    -->
+                    <p id="signin-error" class="text-xs text-red-500 text-center mt-3 hidden">Invalid email or password</p>
+                </div>
+            </div>
+            
+            <!-- 
+              Sign Up Form
+              Hidden by default, shown when user clicks "Sign Up" tab.
+              Contains name, email, and password fields for account creation.
+            -->
+            <div id="signup-form" class="space-y-4 hidden">
+                <!-- Full name input field for account registration -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Full Name</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <!-- Icon container for visual cue -->
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">person</span>
+                        </div>
+                        <!-- 
+                          Name input field for account registration.
+                          Collects user's full name for personalization and display.
+                        -->
+                        <input id="signup-name" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="John Doe"/>
+                    </div>
+                </div>
+                
+                <!-- Email input field for account registration -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Email Address</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <!-- Icon container for visual cue -->
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">mail</span>
+                        </div>
+                        <!-- 
+                          Email input for account registration.
+                          Must be unique across the system.
+                        -->
+                        <input id="signup-email" type="email" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="you@example.com"/>
+                    </div>
+                </div>
+                
+                <!-- Password input field for account registration -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Password</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <!-- Icon container for visual cue -->
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">lock</span>
+                        </div>
+                        <!-- 
+                          Password input for account registration.
+                          Minimum complexity requirements should be enforced by JavaScript.
+                        -->
+                        <input id="signup-password" type="password" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="••••••••"/>
+                    </div>
+                </div>
+                
+                <!-- Submit button and error message container for sign-up -->
+                <div class="pt-2">
+                    <!-- 
+                      Create Account submission button.
+                      Triggers account creation logic and user registration.
+                    -->
+                    <button id="signup-submit" class="w-full h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                        Create Account
+                    </button>
+                    <!-- 
+                      Error message container for sign-up validation failures.
+                      Displays when required fields are missing or validation fails.
+                    -->
+                    <p id="signup-error" class="text-xs text-red-500 text-center mt-3 hidden">Please fill in all fields</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 
+      Authenticated Content - Hidden until auth
+      This section becomes visible after successful authentication.
+      Contains personalized dashboard content for the logged-in user.
+    -->
+    <div id="home-authenticated" class="max-w-md mx-auto hidden">
+        <!-- Welcome Section - Personalized greeting for authenticated user -->
+        <div class="px-4 pt-6 pb-2">
+            <!-- 
+              Welcome message dynamically populated with user's name.
+              JavaScript will update the text content after authentication.
+            -->
+            <h2 id="home-welcome" class="text-2xl font-bold leading-tight mb-4 text-[#0e121b] dark:text-white">
+                Welcome back
+            </h2>
+            <!-- Descriptive subtitle explaining dashboard purpose -->
+            <p class="text-base font-normal leading-normal text-[#4e6797] dark:text-gray-400 mt-2">
+                Explore opportunities and manage your job search.
+            </p>
+        </div>
+
+        <!-- 
+          Saved Jobs Section - DYNAMIC READ-ONLY
+          Displays jobs the user has saved for later review.
+          Populated dynamically from localStorage data.
+        -->
+        <div class="px-4 pt-4">
+            <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">
+                Your Saved Jobs
+            </h3>
+        </div>
+
+        <!-- 
+          Saved jobs container - dynamically populated from localStorage.
+          Initial state shows empty state message when no jobs are saved.
+          JavaScript will replace content with saved job cards when available.
+        -->
+        <div id="saved-jobs-container" class="flex flex-col gap-4 p-4">
+            <!-- Empty state - displayed when localStorage has no saved jobs -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No saved jobs yet</p>
+            </div>
+        </div>
+
+        <!-- 
+          Applied Jobs Section - NEW
+          Tracks jobs the user has applied to.
+          Separate from saved jobs to distinguish between interest and action.
+        -->
+        <div class="px-4 pt-6">
+            <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">
+                Your Applications
+            </h3>
+        </div>
+
+        <!-- 
+          Applied jobs container - dynamically populated from localStorage.
+          Initial state shows empty state message when no applications exist.
+          JavaScript will replace content with applied job cards when available.
+        -->
+        <div id="applied-jobs-container" class="flex flex-col gap-4 p-4">
+            <!-- Empty state - displayed when localStorage has no application records -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No applications yet</p>
+            </div>
+        </div>
+
+        <!-- 
+          Article Cards - STATIC ILLUSTRATIVE CONTENT
+          Non-interactive content cards for career resources.
+          Opacity reduced to indicate these are sample/placeholder content.
+        -->
+        <div class="px-4 pt-6">
+            <h3 class="text-lg font-bold text-[#0e121b] dark:text-white mb-4">
+                Career Resources
+            </h3>
+        </div>
+
+        <!-- 
+          Static content cards with reduced opacity (60%) to indicate they're 
+          illustrative rather than functional in this prototype.
+        -->
+        <div class="flex flex-col gap-4 p-4">
+            <!-- Card 1: CV Writing Tips -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow opacity-60">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h4 class="text-base font-bold text-[#0e121b] dark:text-white">How to Write a Great CV</h4>
+                        <p class="text-sm text-[#4e6797] dark:text-gray-400 mt-1">Tips for creating an effective resume</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Interview Preparation -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow opacity-60">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h4 class="text-base font-bold text-[#0e121b] dark:text-white">Interview Preparation Guide</h4>
+                        <p class="text-sm text-[#4e6797] dark:text-gray-400 mt-1">Common questions and how to answer them</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Salary Negotiation -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow opacity-60">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h4 class="text-base font-bold text-[#0e121b] dark:text-white">Salary Negotiation Tips</h4>
+                        <p class="text-sm text-[#4e6797] dark:text-gray-400 mt-1">How to discuss compensation effectively</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 </body>
+
 </html>
