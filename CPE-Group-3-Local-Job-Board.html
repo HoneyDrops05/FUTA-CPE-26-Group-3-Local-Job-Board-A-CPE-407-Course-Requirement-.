@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<!-- 
+  HTML5 document declaration. The `class="light"` attribute sets the default 
+  theme to light mode, which can be toggled via JavaScript for dark mode support.
+  `lang="en"` specifies English language content for accessibility and SEO.
+-->
+<html class="light" lang="en">
+<head>
+    <!-- 
+      Character encoding declaration: UTF-8 ensures proper rendering of 
+      international characters and symbols.
+    -->
+    <meta charset="utf-8"/>
+    <!--
+      Viewport configuration: Ensures proper responsive behavior on mobile devices
+      by setting initial scale to 1.0 and width to device width.
+    -->
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <!-- 
+      Page title displayed in browser tab and search results.
+      Indicates this is a job board application with local scope.
+    -->
+    <title>Local Job Board</title>
+    
+    <!-- 
+      Tailwind CSS CDN with forms and container queries plugins.
+      Forms plugin adds base styles for form elements.
+      Container queries enable responsive design based on container size.
+    -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    
+    <!--
+      Google Fonts: Inter font family with weights 400-700 for typography.
+      Used throughout the application for consistent text rendering.
+    -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    
+    <!--
+      Material Symbols Outlined icon font from Google Fonts.
+      Provides scalable vector icons for UI elements.
+      Configuration: weight range 100-700, fill range 0-1.
+    -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    
+    <!--
+      Tailwind CSS configuration script.
+      Extends default Tailwind theme with custom colors, fonts, and border radius.
+      Enables dark mode via CSS class strategy.
+    -->
+    <script id="tailwind-config">
+        tailwind.config = {
+            // Dark mode implementation using CSS class strategy
+            // The application toggles between 'light' and 'dark' classes on html element
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        // Primary brand color used for buttons, links, and accents
+                        "primary": "#195de6",
+                        // Light theme background color
+                        "background-light": "#f6f6f8",
+                        // Dark theme background color
+                        "background-dark": "#111621",
+                    },
+                    fontFamily: {
+                        // Main font family for all text elements
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        // Custom border radius scale for consistent UI rounding
+                        "DEFAULT": "1rem",      // Default radius for most elements
+                        "lg": "1.5rem",         // Large radius for cards and containers
+                        "xl": "2rem",           // Extra large for special elements
+                        "full": "9999px"        // Full rounding for circular elements
+                    },
+                },
+            },
+        }
+    </script>
+    
+    <!--
+      Application-specific CSS styles.
+      Contains:
+      1. Base styles and utilities
+      2. UI component states and transitions
+      3. Browser-specific fixes and overrides
+      4. Custom component styles
+    -->
+    <style>
+        /* 
+          Base body font family and tap highlight removal.
+          -webkit-tap-highlight-color prevents the default blue highlight on mobile taps.
+        */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* 
+          Utility class to hide scrollbar while maintaining scroll functionality.
+          Used for scrollable containers where visible scrollbar is not desired.
+        */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /*
+          Glassmorphism effect for navigation elements.
+          Creates a semi-transparent background with backdrop blur.
+          Used for sticky headers or floating navigation.
+        */
+        .nav-blur {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        
+        /*
+          Material icons configuration.
+          Sets default icon appearance: unfilled, normal weight, 24px optical size.
+        */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /*
+          Slide-over panel animation (typically for mobile navigation or side panels).
+          Initially positioned off-screen to the left (-100%).
+          Active class slides it into view (translateX(0)).
+          Used for mobile-first navigation patterns.
+        */
+        .slide-over {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .slide-over.active {
+            transform: translateX(0);
+        }
+        
+        /*
+          Overlay for modal backgrounds and dimming effects.
+          Uses visibility and opacity for smooth fade transitions.
+          Active class makes overlay visible and opaque.
+        */
+        .overlay {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /*
+          View management for job listings and details.
+          Multiple job views can exist; only the active one is displayed.
+          Used for switching between list view, grid view, or detail view.
+        */
+        .jobs-view {
+            display: none;
+        }
+        .jobs-view.active {
+            display: block;
+        }
+        
+        /*
+          Screen management for multi-step forms or application flows.
+          Only one screen is active at a time; others are hidden.
+          Used for wizard interfaces or tabbed content.
+        */
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: block;
+        }
+        
+        /* 
+          CRITICAL: Input Border Bug Fix - Comprehensive Fix
+          Removes all default borders, outlines, and shadows from form inputs
+          to prevent inconsistent browser rendering. Custom styling is applied
+          via Tailwind classes instead.
+        */
+        input, textarea {
+            outline: none;
+            border: none;
+            box-shadow: none;
+        }
+        /* Ensure we don't break intentional focus states */
+        input:focus, textarea:focus {
+            outline: none !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+        
+        /*
+          Browser-specific fixes for input elements:
+          - Removes spinner buttons from number inputs (Chrome/Safari)
+          - Removes search decoration elements
+        */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button,
+        input::-webkit-search-decoration,
+        input::-webkit-search-cancel-button,
+        input::-webkit-search-results-button,
+        input::-webkit-search-results-decoration {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        /*
+          Autofill styling fixes for light and dark modes.
+          Prevents browser's default autofill background colors from conflicting
+          with theme styling. Maintains proper text color contrast in both modes.
+        */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px white inset !important;
+            box-shadow: 0 0 0 30px white inset !important;
+            -webkit-text-fill-color: #0e121b !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+        .dark input:-webkit-autofill,
+        .dark input:-webkit-autofill:hover, 
+        .dark input:-webkit-autofill:focus, 
+        .dark input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #1f2937 inset !important;
+            box-shadow: 0 0 0 30px #1f2937 inset !important;
+            -webkit-text-fill-color: #f8f9fc !important;
+        }
+        
+        /*
+          Minimum body height ensures content area is at least as tall as the viewport
+          or 884px (common screen height), whichever is larger. Prevents awkward short
+          pages on large screens.
+        */
+        body {
+            min-height: max(884px, 100dvh);
+        }
+        
+        /*
+          Visual indicator for jobs the user has already applied to.
+          Green background with white text, small rounded badge style.
+          Applied via JavaScript based on application state.
+        */
+        .applied-badge {
+            background-color: #10b981;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        /*
+          Active state for filter chips/categories in job filtering interface.
+          Changes background to primary brand color and text to white when active.
+          Indicates currently applied filter to the user.
+        */
+        .filter-chip.active {
+            background-color: #195de6;
+            color: white;
+        }
+    </style>
+</head>
+<!--
+  Body element with comprehensive Tailwind classes for styling:
+  - Theme-aware background colors (light/dark)
+  - Font family and text colors with theme support
+  - Smooth color transitions for theme switching
+  - Minimum height to fill viewport
+  - Bottom padding for content clearance above fixed/mobile elements
+-->
+<body class="bg-background-light dark:bg-background-dark font-display text-[#0e121b] dark:text-[#f8f9fc] transition-colors duration-300 min-h-screen pb-40">
+
+
+
+/*All other code comes here, Oyinkansola */
+
+
+</body>
+</html>
