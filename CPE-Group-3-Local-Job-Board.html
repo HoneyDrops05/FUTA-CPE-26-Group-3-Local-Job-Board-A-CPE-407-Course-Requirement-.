@@ -594,7 +594,721 @@
     </div>
 </div>
 
+  <!-- ===== JOBS SCREEN ===== -->
+<!-- Main container for the Jobs module. Contains three distinct views: job listing, job details, and job posting. -->
+<div id="jobs-screen" class="screen">
+    <!-- Top App Bar - CANONICAL REFERENCE: Admin Dashboard -->
+    <!-- Sticky header for navigation within the Jobs screen. References a shared design pattern with the Admin Dashboard. -->
+    <header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 nav-blur border-b border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between px-4 h-16 max-w-md mx-auto">
+            <!-- Button to open the global slide-over navigation menu. -->
+            <button id="jobs-hamburger-menu" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <span class="material-symbols-outlined text-[#0e121b] dark:text-white">menu</span>
+            </button>
+            <!-- Dynamic page title for the Jobs screen. -->
+            <h1 id="jobs-page-title" class="text-lg font-bold tracking-tight text-[#0e121b] dark:text-white">Jobs</h1>
+            <!-- Placeholder spacer to balance the flex layout (mirrors hamburger button width). -->
+            <div class="w-10"></div>
+        </div>
+    </header>
+
+    <!-- VIEW 1: JOB LISTING - ZERO-STATE COMPLIANCE -->
+    <!-- Primary view showing a list of available jobs. Has 'active' class by default; other views are hidden. -->
+    <main id="jobs-listing-view" class="jobs-view active max-w-md mx-auto">
+        <!-- Headline Section -->
+        <!-- Introductory content explaining the purpose of this screen to the user. -->
+        <section class="px-4 pt-6 pb-2">
+            <h1 class="text-[32px] font-bold leading-tight tracking-[-0.015em] text-[#0e121b] dark:text-[#f8f9fc]">
+                Browse available jobs near you
+            </h1>
+            <p class="text-base font-normal leading-normal text-[#4e6797] dark:text-gray-400 mt-2">
+                Find your next opportunity in your local community.
+            </p>
+        </section>
+
+        <!-- Search Bar - INPUT BORDER BUG FIXED -->
+        <!-- Search input for filtering jobs by title or company. Note: Bug fix comment indicates previous styling issue. -->
+        <div class="px-4 py-3">
+            <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                <div class="flex items-center justify-center px-4">
+                    <span class="material-symbols-outlined text-gray-500">search</span>
+                </div>
+                <!-- Input field for job search. Expected to trigger a filtering function on input or change event. -->
+                <input id="job-search" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="Search for job title or company..."/>
+            </div>
+        </div>
+
+        <!-- Filter Chips -->
+        <!-- Interactive buttons for filtering the job list by status (All, Saved, Applied) or attributes (Category, Salary). -->
+        <div class="flex gap-3 px-4 py-2 overflow-x-auto no-scrollbar">
+            <!-- 'All Jobs' filter chip. 'data-filter' attribute is used by JavaScript to identify the filter type. -->
+            <button class="filter-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-filter="all">
+                <p class="text-sm font-medium text-[#0e121b] dark:text-white">All Jobs</p>
+            </button>
+            <!-- Filter chip to show only jobs the user has saved/bookmarked. -->
+            <button class="filter-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-filter="saved">
+                <p class="text-sm font-medium text-[#0e121b] dark:text-white">Saved</p>
+            </button>
+            <!-- Filter chip to show only jobs the user has applied to. -->
+            <button class="filter-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-filter="applied">
+                <p class="text-sm font-medium text-[#0e121b] dark:text-white">Applied</p>
+            </button>
+            <!-- Filter chip for job category. Icon indicates a dropdown or secondary menu should appear on click. -->
+            <button class="filter-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-filter="category">
+                <p class="text-sm font-medium text-[#0e121b] dark:text-white">Category</p>
+                <span class="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+            </button>
+            <!-- Filter chip for salary range. Icon indicates a dropdown or secondary menu should appear on click. -->
+            <button class="filter-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-filter="salary">
+                <p class="text-sm font-medium text-[#0e121b] dark:text-white">Salary Range</p>
+                <span class="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+            </button>
+        </div>
+
+        <!-- Job Cards List - DYNAMICALLY POPULATED FROM localStorage -->
+        <!-- Container where individual job cards will be rendered. Initial content is a zero-state placeholder. -->
+        <div id="jobs-list-container" class="flex flex-col gap-4 p-4">
+            <!-- Zero-state placeholder. This element will be removed or hidden when job data is loaded from localStorage. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No jobs available yet. Be the first to post one!</p>
+            </div>
+        </div>
+
+        <!-- Post Job Button -->
+        <!-- Primary Call-to-Action (CTA) button to navigate to the job posting form (VIEW 3). -->
+        <div class="px-4 py-6">
+            <button id="open-post-job" class="w-full flex items-center justify-center gap-2 h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                <span class="material-symbols-outlined text-lg">add</span>
+                Post a Job
+            </button>
+        </div>
+    </main>
+
+    <!-- VIEW 2: JOB DETAILS -->
+    <!-- Detail view for a single job. Activated when a user clicks a job card in VIEW 1. -->
+    <main id="job-details-view" class="jobs-view max-w-md mx-auto">
+        <!-- Back Button -->
+        <!-- Navigation element to return the user to the job listing view (VIEW 1). -->
+        <div class="px-4 pt-4">
+            <button id="back-from-details" class="flex items-center gap-2 text-primary font-medium mb-2">
+                <span class="material-symbols-outlined">arrow_back</span>
+                Back to Jobs
+            </button>
+        </div>
+
+        <!-- Job Headline & Meta -->
+        <!-- Section for displaying the core details of the selected job. Content is populated dynamically via JavaScript. -->
+        <div class="px-4 pt-2 pb-4">
+            <!-- Dynamic job title. -->
+            <h2 id="detail-title" class="text-3xl font-bold leading-tight mb-2 text-[#0e121b] dark:text-white">Job Title</h2>
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Dynamic job location. -->
+                <span id="detail-location" class="text-sm font-medium text-[#4e6797] dark:text-gray-400">Location •</span>
+                <!-- Dynamic job salary range. Formatted in Nigerian Naira (₦). -->
+                <span id="detail-salary" class="text-sm font-bold text-primary">₦0 - ₦0 /yr</span>
+            </div>
+        </div>
+
+        <!-- Hero Image -->
+        <!-- Placeholder for a job-related image. Currently empty; could be populated from job data. -->
+        <div class="px-4 mb-6">
+            <div class="w-full aspect-[16/9] bg-gray-200 dark:bg-gray-800 rounded-xl shadow-sm"></div>
+        </div>
+
+        <!-- Content Cards -->
+        <div class="px-4 space-y-4">
+            <!-- Description Card -->
+            <!-- Card containing the full job description. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm">
+                <h3 class="text-lg font-bold mb-3 flex items-center gap-2 text-[#0e121b] dark:text-white">
+                    <span class="material-symbols-outlined text-primary text-xl">info</span>
+                    Job Description
+                </h3>
+                <!-- Dynamic job description text. -->
+                <p id="detail-description" class="text-gray-600 dark:text-gray-300 leading-relaxed text-base">
+                    Job description will appear here.
+                </p>
+            </div>
+
+            <!-- Requirements Card -->
+            <!-- Card listing the job requirements. Structured as a list. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm">
+                <h3 class="text-lg font-bold mb-3 flex items-center gap-2 text-[#0e121b] dark:text-white">
+                    <span class="material-symbols-outlined text-primary text-xl">checklist</span>
+                    Requirements
+                </h3>
+                <!-- Container for requirement list items. Populated dynamically. -->
+                <ul id="detail-requirements" class="space-y-3">
+                    <!-- Template list item structure. Will be cloned and populated for each requirement. -->
+                    <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-green-500 text-sm mt-1">check_circle</span>
+                        <span class="text-gray-600 dark:text-gray-300 text-base">Requirements will appear here.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Application Actions -->
+        <!-- Fixed footer bar containing action buttons for the displayed job. -->
+        <div class="fixed bottom-20 left-0 right-0 z-40 bg-background-light/95 dark:bg-background-dark/95 nav-blur px-4 py-4 border-t border-gray-200 dark:border-gray-800">
+            <!-- Primary action: Apply for the job. Likely triggers a modal or application flow. -->
+            <button id="apply-job" class="w-full bg-primary text-white py-4 rounded-full font-bold text-base shadow-lg shadow-primary/25 active:scale-95 transition-transform">
+                Apply for Job
+            </button>
+            <!-- Secondary action: Save/bookmark the job for later. Toggle state expected. -->
+            <button id="save-job-detail" class="w-full bg-transparent border-2 border-primary/20 text-primary py-4 rounded-full font-bold text-base hover:bg-primary/5 active:scale-95 transition-all mt-3">
+                Save Job
+            </button>
+        </div>
+    </main>
+
+    <!-- VIEW 3: POST JOB - WITH COMPANY ID AND EMAIL FIELDS -->
+    <!-- Form view for creating a new job listing. Includes new fields for company authentication. -->
+    <main id="post-job-view" class="jobs-view max-w-md mx-auto">
+        <!-- Back Button -->
+        <!-- Navigation to return to the job listing view (VIEW 1). -->
+        <div class="px-4 pt-4">
+            <button id="back-from-post" class="flex items-center gap-2 text-primary font-medium mb-2">
+                <span class="material-symbols-outlined">arrow_back</span>
+                Back to Jobs
+            </button>
+        </div>
+
+        <!-- Form Section -->
+        <!-- Main container for all form fields and submission buttons. -->
+        <div class="px-4 pt-2 pb-24">
+            <h2 class="text-2xl font-bold leading-tight mb-6 text-[#0e121b] dark:text-white">Create Job Listing</h2>
+            
+            <!-- Job Title Field -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Job Title *</label>
+                <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-center px-4">
+                        <span class="material-symbols-outlined text-gray-500">work</span>
+                    </div>
+                    <!-- Input for the job title. Required field. -->
+                    <input id="post-job-title" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="e.g., Senior Software Engineer"/>
+                </div>
+            </div>
+
+            <!-- Company Name Field -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company Name *</label>
+                <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-center px-4">
+                        <span class="material-symbols-outlined text-gray-500">apartment</span>
+                    </div>
+                    <!-- Input for the hiring company's name. Required field. -->
+                    <input id="post-company" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="Your company name"/>
+                </div>
+            </div>
+
+            <!-- Location Field -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Location *</label>
+                <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-center px-4">
+                        <span class="material-symbols-outlined text-gray-500">location_on</span>
+                    </div>
+                    <!-- Input for the job's location. Required field. -->
+                    <input id="post-location" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="City, State"/>
+                </div>
+            </div>
+
+            <!-- Company ID (NEW FIELD) -->
+            <!-- New required field for company authentication/authorization. Links job posts to a specific company account. -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company ID *</label>
+                <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-center px-4">
+                        <span class="material-symbols-outlined text-gray-500">badge</span>
+                    </div>
+                    <!-- Input for a unique company identifier. Assumed to be provided by the Admin Dashboard system. -->
+                    <input id="post-company-id" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="Your company's unique ID"/>
+                </div>
+                <!-- Helper text explaining where to find the Company ID. -->
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Get this from your Admin Dashboard</p>
+            </div>
+
+            <!-- Company Email (NEW FIELD) -->
+            <!-- New required field for company contact/verification. -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company Email *</label>
+                <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-center px-4">
+                        <span class="material-symbols-outlined text-gray-500">mail</span>
+                    </div>
+                    <!-- Input for the company's contact email. Must be a valid email format. -->
+                    <input id="post-company-email" type="email" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="contact@company.com"/>
+                </div>
+            </div>
+
+            <!-- Category Selection -->
+            <!-- Horizontal chip selection for job category. Only one category is expected to be selectable. -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Category *</label>
+                <div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                    <!-- Each button has a 'data-category' attribute storing its value for form processing. -->
+                    <button class="category-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-category="Technology">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Technology</p>
+                    </button>
+                    <button class="category-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-category="Retail">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Retail</p>
+                    </button>
+                    <button class="category-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-category="Hospitality">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Hospitality</p>
+                    </button>
+                    <button class="category-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-category="Healthcare">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Healthcare</p>
+                    </button>
+                    <button class="category-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-category="Education">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Education</p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Salary Range Selection - NIGERIAN NAIRA (₦) COMPLIANCE -->
+            <!-- Salary selection using predefined ranges or a custom input. Formatted for Nigerian Naira. -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Salary Range * (₦)</label>
+                <div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                    <!-- Predefined salary range buttons. 'data-salary' attribute holds the display value. -->
+                    <button class="salary-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-salary="₦50k - ₦70k">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">₦50k - ₦70k</p>
+                    </button>
+                    <button class="salary-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-salary="₦70k - ₦90k">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">₦70k - ₦90k</p>
+                    </button>
+                    <button class="salary-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-salary="₦90k - ₦110k">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">₦90k - ₦110k</p>
+                    </button>
+                    <button class="salary-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-salary="₦110k+">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">₦110k+</p>
+                    </button>
+                    <!-- Special button to reveal the custom salary input field. -->
+                    <button class="salary-chip flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700" data-salary="custom">
+                        <p class="text-sm font-medium text-[#0e121b] dark:text-white">Custom</p>
+                    </button>
+                </div>
+                <!-- Custom Salary Input -->
+                <!-- Hidden container for entering a non-standard salary range. Becomes visible when "Custom" chip is selected. -->
+                <div id="custom-salary-input" class="mt-3 hidden">
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">currency_exchange</span>
+                        </div>
+                        <!-- Free-text input for custom salary range. Validation expected. -->
+                        <input id="post-salary-custom" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="e.g., ₦150,000 - ₦250,000"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Description Field -->
+            <!-- Large textarea for the detailed job description. -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Job Description *</label>
+                <div class="w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <textarea id="post-description" class="w-full h-48 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none p-4 text-base font-normal resize-none" placeholder="Describe the responsibilities, requirements, and benefits of this position..."></textarea>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <!-- Form submission and cancellation controls. -->
+            <div class="flex flex-col gap-3">
+                <!-- Primary submit button. Expected to validate form and save job data to localStorage and/or backend. -->
+                <button id="submit-job-post" class="w-full h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                    Post Job
+                </button>
+                <div class="flex gap-3">
+                    <!-- Secondary button to save form data as a draft without publishing. Expected to store in localStorage. -->
+                    <button id="save-draft" class="flex-1 h-12 bg-transparent border-2 border-primary/20 text-primary text-base font-bold leading-normal rounded-full hover:bg-primary/5 active:scale-95 transition-all">
+                        Save Draft
+                    </button>
+                    <!-- Cancel button to discard the form and return to the job listing view. -->
+                    <button id="cancel-post" class="flex-1 h-12 bg-gray-100 dark:bg-gray-800 text-[#0e121b] dark:text-white text-base font-bold leading-normal rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- ===== ADMIN DASHBOARD ===== -->
+<!-- Separate screen for administrative functions, accessible via bottom navigation. -->
+<div id="admin-screen" class="screen">
+    <!-- Top App Bar - CANONICAL REFERENCE -->
+    <!-- Sticky header matching the design pattern established in the Jobs screen. -->
+    <header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 nav-blur border-b border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between px-4 h-16 max-w-md mx-auto">
+            <!-- Button to open the global slide-over navigation menu. -->
+            <button id="admin-hamburger-menu" class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <span class="material-symbols-outlined text-[#0e121b] dark:text-white">menu</span>
+            </button>
+            <!-- Static title for the Admin Dashboard. -->
+            <h1 class="text-lg font-bold tracking-tight text-[#0e121b] dark:text-white">Admin Dashboard</h1>
+            <!-- Placeholder spacer for layout symmetry. -->
+            <div class="w-10"></div>
+        </div>
+    </header>
+
+    <!-- Admin Credential Gate - DUAL-KEY AUTHENTICATION -->
+    <!-- Authentication form displayed before accessing the main admin content. -->
+    <div id="admin-gate" class="max-w-md mx-auto px-4 pt-8">
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 shadow-sm mb-6">
+            <!-- Header section introducing the authentication requirement. -->
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-[#0e121b] dark:text-white">Company Admin Access</h2>
+                    <p class="text-sm text-[#4e6797] dark:text-gray-400 mt-1">Enter your company-specific credentials</p>
+                </div>
+            </div>
+            
+            <!-- Tabbed interface to toggle between Sign In and Sign Up forms. -->
+            <div id="admin-auth-tabs" class="flex border-b border-gray-200 dark:border-gray-800 mb-6">
+                <!-- Active tab for existing admin users. -->
+                <button id="admin-tab-signin" class="flex-1 py-3 text-center font-medium text-primary border-b-2 border-primary">Sign In</button>
+                <!-- Inactive tab for new company registration. -->
+                <button id="admin-tab-signup" class="flex-1 py-3 text-center font-medium text-[#4e6797] dark:text-gray-400">Sign Up</button>
+            </div>
+            
+            <!-- Admin Sign In Form -->
+            <!-- Default visible form for authenticating an existing admin user. -->
+            <div id="admin-signin-form" class="space-y-4">
+                <!-- Company Email Input -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company Email</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">mail</span>
+                        </div>
+                        <!-- Input for the admin's registered email address. -->
+                        <input id="admin-signin-email" type="email" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="admin@company.com"/>
+                    </div>
+                </div>
+                
+                <!-- Company ID Input -->
+                <!-- Part of the dual-key authentication: requires both Company ID and password. -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company ID</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">badge</span>
+                        </div>
+                        <!-- Input for the unique company identifier. -->
+                        <input id="admin-signin-companyid" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="Your Company ID"/>
+                    </div>
+                </div>
+                
+                <!-- Password Input -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Password</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">lock</span>
+                        </div>
+                        <!-- Password input field. -->
+                        <input id="admin-signin-password" type="password" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="••••••••"/>
+                    </div>
+                </div>
+                
+                <!-- Submit Button and Error Message -->
+                <div class="pt-4">
+                    <!-- Button to submit sign-in credentials. Expected to validate against stored admin data. -->
+                    <button id="admin-signin-submit" class="w-full h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                        Access Admin Dashboard
+                    </button>
+                    <!-- Error message element, hidden by default, shown on authentication failure. -->
+                    <p id="admin-signin-error" class="text-xs text-red-500 text-center mt-3 hidden">Invalid credentials</p>
+                </div>
+            </div>
+            
+            <!-- Admin Sign Up Form -->
+            <!-- Form for registering a new company admin account. Hidden by default. -->
+            <div id="admin-signup-form" class="space-y-4 hidden">
+                <!-- Company Name Input -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Company Name *</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">apartment</span>
+                        </div>
+                        <!-- Input for the new company's name. -->
+                        <input id="admin-signup-company" type="text" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="Your Company Name"/>
+                    </div>
+                </div>
+                
+                <!-- Admin Email Input -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Admin Email *</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">person</span>
+                        </div>
+                        <!-- Input for the primary admin's email address. -->
+                        <input id="admin-signup-email" type="email" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="admin@company.com"/>
+                    </div>
+                </div>
+                
+                <!-- Password Input -->
+                <div>
+                    <label class="block text-sm font-medium text-[#0e121b] dark:text-white mb-2">Password *</label>
+                    <div class="flex w-full h-14 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-center px-4">
+                            <span class="material-symbols-outlined text-gray-500">lock</span>
+                        </div>
+                        <!-- Input for the admin account password. -->
+                        <input id="admin-signup-password" type="password" class="flex-1 bg-transparent text-[#0e121b] dark:text-white placeholder:text-gray-400 focus:outline-none px-2 text-base font-normal" placeholder="••••••••"/>
+                    </div>
+                </div>
+                
+                <!-- Submit Button and Messages -->
+                <div class="pt-4">
+                    <!-- Button to create a new company admin account. Expected to generate a unique Company ID. -->
+                    <button id="admin-signup-submit" class="w-full h-14 bg-primary text-white text-base font-bold leading-normal rounded-full shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all">
+                        Create Company Account
+                    </button>
+                    <!-- Error message for sign-up validation failures. -->
+                    <p id="admin-signup-error" class="text-xs text-red-500 text-center mt-3 hidden">Please fill in all fields</p>
+                    <!-- Informational text explaining the Company ID generation process. -->
+                    <p class="text-xs text-[#4e6797] dark:text-gray-400 text-center mt-3">
+                        Your Company ID will be generated automatically and displayed after sign-up.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content - SCOPE-COMPLIANT -->
+    <!-- The main admin dashboard content, hidden until successful authentication. -->
+    <main id="admin-content" class="max-w-md mx-auto hidden">
+        <!-- Stats Overview -->
+        <!-- High-level summary statistics for the authenticated company. -->
+        <div class="px-4 pt-6 pb-2">
+            <h2 class="text-2xl font-bold leading-tight mb-4 text-[#0e121b] dark:text-white">Overview</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <!-- Pending Jobs Stat Card -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-[#4e6797] dark:text-gray-400">Pending Jobs</p>
+                            <!-- Dynamic count of jobs awaiting admin approval. -->
+                            <p id="admin-pending-jobs" class="text-2xl font-bold text-[#0e121b] dark:text-white mt-1">0</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-primary">pending_actions</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Total Users Stat Card -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-[#4e6797] dark:text-gray-400">Total Users</p>
+                            <!-- Dynamic count of users associated with the company. -->
+                            <p id="admin-total-users" class="text-2xl font-bold text-[#0e121b] dark:text-white mt-1">1</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-green-500">group</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Approvals Section -->
+        <!-- Section for reviewing and approving job postings created by users. -->
+        <div class="px-4 pt-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">Job Approvals</h3>
+                <!-- Dynamic badge showing the number of pending job approvals. -->
+                <span id="admin-pending-count" class="text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">0 pending</span>
+            </div>
+        </div>
+
+        <!-- Container for Pending Job Cards -->
+        <!-- Dynamically populated with job listings that require admin approval. -->
+        <div id="admin-pending-jobs-container" class="flex flex-col gap-4 p-4">
+            <!-- Zero-state placeholder shown when no pending jobs exist. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No pending jobs for approval</p>
+            </div>
+        </div>
+
+        <!-- Application Approvals Section - NEW -->
+        <!-- Section for reviewing and approving user applications to jobs. -->
+        <div class="px-4 pt-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">Application Approvals</h3>
+                <!-- Dynamic badge showing the number of pending application approvals. -->
+                <span id="admin-pending-apps-count" class="text-xs font-medium text-purple-500 bg-purple-500/10 px-3 py-1 rounded-full">0 pending</span>
+            </div>
+        </div>
+
+        <!-- Container for Pending Application Cards -->
+        <!-- Dynamically populated with job applications that require admin approval. -->
+        <div id="admin-pending-apps-container" class="flex flex-col gap-4 p-4">
+            <!-- Zero-state placeholder shown when no pending applications exist. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No pending applications for approval</p>
+            </div>
+        </div>
+
+        <!-- User Management Section -->
+        <!-- Section for managing users within the company's scope. -->
+        <div class="px-4 pt-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">User Management</h3>
+                <!-- Button to open a modal or form for adding a new user to the company. -->
+                <button id="admin-add-user-btn" class="flex items-center justify-center gap-2 h-10 bg-primary text-white text-sm font-bold px-4 rounded-full shadow-sm hover:bg-primary/90 active:scale-95 transition-all">
+                    <span class="material-symbols-outlined text-lg">add</span>
+                    Add User
+                </button>
+            </div>
+        </div>
+
+        <!-- Container for User Cards -->
+        <!-- Dynamically populated with users belonging to the authenticated company. -->
+        <div id="admin-users-container" class="flex flex-col gap-4 p-4">
+            <!-- Zero-state placeholder shown when only the primary admin user exists. -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                <p class="text-gray-500 dark:text-gray-400">No additional users yet</p>
+            </div>
+        </div>
+
+        <!-- Reports & Analytics Section -->
+        <!-- Section for displaying company-level analytics. -->
+        <div class="px-4 pt-6">
+            <h3 class="text-lg font-bold mb-4 text-[#0e121b] dark:text-white">Reports & Analytics</h3>
+        </div>
+
+        <!-- Analytics Stat Cards -->
+        <div class="grid grid-cols-2 gap-3 p-4">
+            <!-- Total Jobs Stat Card -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-purple-500">trending_up</span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-[#4e6797] dark:text-gray-400">Total Jobs</p>
+                        <!-- Dynamic count of all jobs posted by the company. -->
+                        <p id="admin-total-jobs" class="text-lg font-bold text-[#0e121b] dark:text-white">0</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Growth Rate Stat Card -->
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-orange-500">show_chart</span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-[#4e6797] dark:text-gray-400">Growth Rate</p>
+                        <!-- Dynamic growth rate percentage, likely calculated from job or user metrics. -->
+                        <p id="admin-growth-rate" class="text-lg font-bold text-[#0e121b] dark:text-white">0%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- ===== UNIFIED BOTTOM NAVIGATION ===== -->
+<!-- Global navigation bar fixed at the bottom of the viewport. Allows switching between app sections. -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-gray-900/90 nav-blur border-t border-gray-200 dark:border-gray-800 h-20 flex items-center justify-around px-4">
+    <!-- Home Navigation Button -->
+    <!-- Currently active/selected state (indicated by primary color and filled icon). -->
+    <button id="nav-home" class="nav-button flex flex-col items-center justify-center gap-1 text-primary">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">home</span>
+        <span class="text-[10px] font-bold">Home</span>
+    </button>
+    <!-- Jobs Navigation Button -->
+    <!-- Inactive state. Clicking this should navigate to the Jobs screen (id="jobs-screen"). -->
+    <button id="nav-jobs" class="nav-button flex flex-col items-center justify-center gap-1 text-gray-400">
+        <span class="material-symbols-outlined">work</span>
+        <span class="text-[10px] font-medium">Jobs</span>
+    </button>
+    <!-- Admin Navigation Button -->
+    <!-- Inactive state. Clicking this should navigate to the Admin Dashboard screen (id="admin-screen"). -->
+    <button id="nav-admin" class="nav-button flex flex-col items-center justify-center gap-1 text-gray-400">
+        <span class="material-symbols-outlined">admin_panel_settings</span>
+        <span class="text-[10px] font-medium">Admin</span>
+    </button>
+</nav>
+
+<!-- ===== SLIDE-OVER MENU (Single instance for all screens) ===== -->
+<!-- Global side navigation menu (drawer) accessible from hamburger menus on all screens. -->
+
+<!-- Overlay -->
+<!-- Semi-transparent backdrop that appears when the slide-over menu is open. Clicking it closes the menu. -->
+<div id="slide-overlay" class="overlay fixed inset-0 z-50 bg-black/50"></div>
+
+<!-- Slide Panel -->
+<!-- The actual sliding menu panel that appears from the left side of the screen. -->
+<div id="slide-panel" class="slide-over fixed top-0 left-0 z-50 w-64 h-full bg-white dark:bg-gray-900 shadow-xl">
+    <!-- Menu Header -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+        <!-- Close Button -->
+        <div class="flex items-center justify-between mb-4">
+            <button id="slide-close-menu" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <span class="material-symbols-outlined text-[#0e121b] dark:text-white">close</span>
+            </button>
+        </div>
+        <!-- User Info Section -->
+        <!-- Displays current user's name and email. Populated dynamically based on auth state. -->
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <!-- Dynamic icon reflecting user role or avatar. -->
+                <span id="slide-user-icon" class="material-symbols-outlined text-primary">person</span>
+            </div>
+            <div>
+                <!-- Dynamic user display name. Default text indicates signed-out state. -->
+                <p id="slide-user-name" class="text-sm font-bold text-[#0e121b] dark:text-white">User Account</p>
+                <!-- Dynamic user email. Default text indicates signed-out state. -->
+                <p id="slide-user-email" class="text-xs text-gray-500 dark:text-gray-400">Sign in to view details</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Menu Items -->
+    <div class="p-2">
+        <!-- Profile Settings Link -->
+        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">person</span>
+            <span class="text-base font-normal text-[#0e121b] dark:text-white">Profile Settings</span>
+        </a>
+        <!-- Advanced Analytics Link -->
+        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">analytics</span>
+            <span class="text-base font-normal text-[#0e121b] dark:text-white">Advanced Analytics</span>
+        </a>
+        <!-- System Settings Link -->
+        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">settings</span>
+            <span class="text-base font-normal text-[#0e121b] dark:text-white">System Settings</span>
+        </a>
+        <!-- Footer Menu Items -->
+        <div class="px-4 py-3 mt-2 border-t border-gray-200 dark:border-gray-800">
+            <!-- Help & Support Link -->
+            <a href="#" class="flex items-center gap-3 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">help</span>
+                <span class="text-base font-normal text-[#0e121b] dark:text-white">Help & Support</span>
+            </a>
+            <!-- Log Out Button -->
+            <!-- Triggers user logout and likely clears session data. -->
+            <button id="slide-logout-btn" class="w-full flex items-center gap-3 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">logout</span>
+                <span class="text-base font-normal text-red-500">Log Out</span>
+            </button>
+        </div>
+    </div>
+</div>
 
 </body>
 
 </html>
+
