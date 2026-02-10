@@ -1308,7 +1308,987 @@
     </div>
 </div>
 
+  <!-- ============================================================================
+TOAST NOTIFICATION COMPONENT
+============================================================================
+A temporary notification element that displays success, error, or info messages
+to users. It's positioned at the top center of the screen and uses CSS transitions
+for smooth appearance and disappearance.
+============================================================================ -->
+<!-- 
+TOAST CONTAINER:
+- Positioned fixed at top center with high z-index to appear above all content
+- Uses opacity and transform for fade-in/out and slide-down/up animations
+- Initially hidden (opacity: 0) and positioned above viewport (translate-y-10)
+-->
+<div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-gray-800 text-white px-6 py-3 rounded-xl shadow-lg transition-all duration-300 opacity-0 -translate-y-10">
+    <div class="flex items-center gap-2">
+        <!-- TOAST ICON:
+             Dynamically updated based on notification type (success, error, info)
+             Uses Material Symbols icon font with color variations per type -->
+        <span id="toast-icon" class="material-symbols-outlined">check_circle</span>
+        <!-- TOAST MESSAGE:
+             Text content set programmatically based on notification context -->
+        <span id="toast-message">Notification</span>
+    </div>
+</div>
+
+<script>
+    // ============================================================================
+    // DATA STORE MODULE - LOCAL STORAGE MANAGER
+    // ============================================================================
+    /**
+     * @namespace DataStore
+     * @description Centralized data management layer for persistent storage using
+     *              browser's LocalStorage API. Implements a schema for users,
+     *              companies, jobs, applications, and analytics. All data is
+     *              serialized as JSON strings with consistent key patterns.
+     * @note This implementation uses LocalStorage which persists across browser
+     *       sessions. Data format should remain stable as it affects existing
+     *       user data.
+     */
+    const DataStore = {
+        // ============================================================================
+        // USER DATA MANAGEMENT (JOB SEEKERS)
+        // ============================================================================
+        
+        /**
+         * @function saveUser
+         * @description Persists job seeker user data to LocalStorage and updates
+         *              the current session user reference.
+         * @param {string} email - User's email address, used as unique identifier
+         *                 in storage key format: `user_${email}`
+         * @param {Object} userData - Complete user profile object containing:
+         *                 - email: User's email (should match param)
+         *                 - password: Hashed or plain text password (security risk)
+         *                 - name: User's display name
+         *                 - [other profile fields]
+         * @sideeffect Writes to LocalStorage under key `user_${email}`
+         * @sideeffect Updates currentUser session reference via updateCurrentUser()
+         */
+        saveUser: function(email, userData) {
+            // Store user data as JSON string with email-based key
+            localStorage.setItem(`user_${email}`, JSON.stringify(userData));
+            // Update session tracking to mark this user as currently logged in
+            this.updateCurrentUser(email);
+        },
+        
+        /**
+         * @function getUser
+         * @description Retrieves job seeker user data from LocalStorage by email.
+         * @param {string} email - User's email address used to construct storage key
+         * @returns {Object|null} Parsed user object if found, null if user doesn't exist
+         * @sideeffect Reads from LocalStorage, performs JSON parsing
+         */
+        getUser: function(email) {
+            const data = localStorage.getItem(`user_${email}`);
+            return data ? JSON.parse(data) : null;
+        },
+        
+        // ============================================================================
+        // COMPANY DATA MANAGEMENT
+        // ============================================================================
+        
+        /**
+         * @function saveCompany
+         * @description Persists company data to LocalStorage and updates current
+         *              company session reference.
+         * @param {string} companyId - Unique company identifier (generated elsewhere)
+         * @param {Object} companyData - Company profile object containing:
+         *                 - companyId: Should match param
+         *                 - name: Company display name
+         *                 - adminEmail: Primary administrator email
+         *                 - password: Admin password (security concern)
+         *                 - [other company details]
+         * @sideeffect Writes to LocalStorage under key `company_${companyId}`
+         * @sideeffect Updates currentCompany session reference via updateCurrentCompany()
+         */
+        saveCompany: function(companyId, companyData) {
+            localStorage.setItem(`company_${companyId}`, JSON.stringify(companyData));
+            this.updateCurrentCompany(companyId);
+        },
+        
+        /**
+         * @function getCompany
+         * @description Retrieves company data from LocalStorage by company ID.
+         * @param {string} companyId - Unique company identifier
+         * @returns {Object|null} Parsed company object if found, null otherwise
+         */
+        getCompany: function(companyId) {
+            const data = localStorage.getItem(`company_${companyId}`);
+            return data ? JSON.parse(data) : null;
+        },
+        
+        /**
+         * @function addCompanyUser
+         * @description Associates a user email with a company for multi-user
+         *              company accounts. Maintains list of users per company.
+         * @param {string} companyId - Company to which user should be added
+         * @param {string} userEmail - Email of user to associate with company
+         * @sideeffect Creates or updates array in LocalStorage under key `users_${companyId}`
+         * @note Prevents duplicate entries for same user email
+         */
+        addCompanyUser: function(companyId, userEmail) {
+            const key = `users_${companyId}`;
+            const users = JSON.parse(localStorage.getItem(key)) || [];
+            if (!users.includes(userEmail)) {
+                users.push(userEmail);
+                localStorage.setItem(key, JSON.stringify(users));
+            }
+        },
+        
+        /**
+         * @function getCompanyUsers
+         * @description Retrieves list of user emails associated with a company.
+         * @param {string} companyId - Company identifier
+         * @returns {Array<string>} Array of user email strings, empty array if none
+         */
+        getCompanyUsers: function(companyId) {
+            const key = `users_${companyId}`;
+            return JSON.parse(localStorage.getItem(key)) || [];
+        },
+        
+        // ============================================================================
+        // JOB POSTING MANAGEMENT
+        // ============================================================================
+        
+        /**
+         * @function saveJob
+         * @description Stores a job posting with comprehensive indexing for
+         *              efficient retrieval by company, status, and global listing.
+         *              Implements business logic for job approval workflow.
+         * @param {string} jobId - Unique job identifier (generated externally)
+         * @param {Object} jobData - Complete job posting object containing:
+         *                 - jobId: Should match param
+         *                 - companyId: ID of posting company
+         *                 - title: Job title
+         *                 - companyName: Display name of company
+         *                 - location: Job location
+         *                 - category: Job category/industry
+         *                 - salary: Salary range or information
+         *                 - description: Job details and requirements
+         *                 - companyEmail: Contact email for applications
+         *                 - postedAt: ISO timestamp of posting
+         *                 - status: 'pending', 'approved', or 'rejected'
+         * @sideeffect Multiple LocalStorage writes:
+         *             1. Primary job data under `job_${jobId}`
+         *             2. Company job index under `company_jobs_${companyId}`
+         *             3. Pending jobs index under `pending_jobs_${companyId}`
+         * @sideeffect Updates analytics for job posting count
+         * @dependency Assumes jobData.companyId exists and is valid
+         */
+        saveJob: function(jobId, jobData) {
+            // Store primary job object
+            localStorage.setItem(`job_${jobId}`, JSON.stringify(jobData));
+            
+            // Index job ID under company's job list for quick retrieval
+            const companyKey = `company_jobs_${jobData.companyId}`;
+            const companyJobs = JSON.parse(localStorage.getItem(companyKey)) || [];
+            if (!companyJobs.includes(jobId)) {
+                companyJobs.push(jobId);
+                localStorage.setItem(companyKey, JSON.stringify(companyJobs));
+            }
+            
+            // Add to pending jobs queue (requires admin approval)
+            const pendingKey = `pending_jobs_${jobData.companyId}`;
+            const pendingJobs = JSON.parse(localStorage.getItem(pendingKey)) || [];
+            if (!pendingJobs.includes(jobId)) {
+                pendingJobs.push(jobId);
+                localStorage.setItem(pendingKey, JSON.stringify(pendingJobs));
+            }
+            
+            // Record job posting event in analytics
+            this.updateAnalyticsLog(jobData.companyId, 'jobPosted');
+        },
+        
+        /**
+         * @function getJob
+         * @description Retrieves a single job posting by ID.
+         * @param {string} jobId - Unique job identifier
+         * @returns {Object|null} Parsed job object if found, null otherwise
+         */
+        getJob: function(jobId) {
+            const data = localStorage.getItem(`job_${jobId}`);
+            return data ? JSON.parse(data) : null;
+        },
+        
+        /**
+         * @function getAllJobs
+         * @description Retrieves all job postings from LocalStorage, excluding
+         *              rejected jobs. Performs linear scan of all LocalStorage keys.
+         * @returns {Array<Object>} Array of all non-rejected job objects
+         * @performance O(n) where n is LocalStorage key count - consider scaling implications
+         * @note Filters out jobs with status 'rejected' to hide unapproved content
+         */
+        getAllJobs: function() {
+            const jobs = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('job_')) {
+                    const jobData = JSON.parse(localStorage.getItem(key));
+                    // Business rule: Only include non-rejected jobs in public listings
+                    if (jobData && jobData.status !== 'rejected') {
+                        jobs.push(jobData);
+                    }
+                }
+            }
+            return jobs;
+        },
+        
+        /**
+         * @function getCompanyJobs
+         * @description Retrieves all jobs posted by a specific company using
+         *              the company's job index for efficient lookup.
+         * @param {string} companyId - Company identifier
+         * @returns {Array<Object>} Array of job objects for the specified company
+         * @note Returns empty array if company has no jobs or doesn't exist
+         */
+        getCompanyJobs: function(companyId) {
+            const companyKey = `company_jobs_${companyId}`;
+            const jobIds = JSON.parse(localStorage.getItem(companyKey)) || [];
+            // Map job IDs to full job objects, filtering out any nulls (deleted jobs)
+            return jobIds.map(jobId => this.getJob(jobId)).filter(job => job);
+        },
+        
+        /**
+         * @function updateJobStatus
+         * @description Updates a job's approval status and manages pending jobs
+         *              queue. Used by admin to approve or reject job postings.
+         * @param {string} jobId - Job identifier to update
+         * @param {string} status - New status: 'pending', 'approved', or 'rejected'
+         * @returns {void}
+         * @sideeffect Updates job object in LocalStorage
+         * @sideeffect Removes job from pending queue if status changes from 'pending'
+         * @businessLogic When a job is approved or rejected, it's removed from
+         *                pending review queue. Rejected jobs remain in storage
+         *                but are filtered out of getAllJobs() results.
+         */
+        updateJobStatus: function(jobId, status) {
+            const job = this.getJob(jobId);
+            if (job) {
+                job.status = status;
+                localStorage.setItem(`job_${jobId}`, JSON.stringify(job));
+                
+                // Business rule: Remove from pending queue once decision is made
+                if (status !== 'pending') {
+                    const pendingKey = `pending_jobs_${job.companyId}`;
+                    let pendingJobs = JSON.parse(localStorage.getItem(pendingKey)) || [];
+                    pendingJobs = pendingJobs.filter(id => id !== jobId);
+                    localStorage.setItem(pendingKey, JSON.stringify(pendingJobs));
+                }
+            }
+        },
+        
+        // ============================================================================
+        // SAVED JOBS (USER BOOKMARKS)
+        // ============================================================================
+        
+        /**
+         * @function saveJobForUser
+         * @description Bookmarks a job for a specific user. Prevents duplicate saves.
+         * @param {string} userEmail - User's email address
+         * @param {string} jobId - Job identifier to bookmark
+         * @returns {boolean} true if job was saved (new), false if already saved
+         * @sideeffect Creates/updates array in LocalStorage under `saved_jobs_${userEmail}`
+         */
+        saveJobForUser: function(userEmail, jobId) {
+            const key = `saved_jobs_${userEmail}`;
+            const savedJobs = JSON.parse(localStorage.getItem(key)) || [];
+            if (!savedJobs.includes(jobId)) {
+                savedJobs.push(jobId);
+                localStorage.setItem(key, JSON.stringify(savedJobs));
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * @function removeSavedJob
+         * @description Removes a job bookmark for a specific user.
+         * @param {string} userEmail - User's email address
+         * @param {string} jobId - Job identifier to remove from bookmarks
+         * @returns {boolean} true if job was removed, false if not found
+         * @sideeffect Updates array in LocalStorage under `saved_jobs_${userEmail}`
+         */
+        removeSavedJob: function(userEmail, jobId) {
+            const key = `saved_jobs_${userEmail}`;
+            const savedJobs = JSON.parse(localStorage.getItem(key)) || [];
+            const index = savedJobs.indexOf(jobId);
+            if (index > -1) {
+                savedJobs.splice(index, 1);
+                localStorage.setItem(key, JSON.stringify(savedJobs));
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * @function getUserSavedJobs
+         * @description Retrieves all bookmarked jobs for a specific user.
+         * @param {string} userEmail - User's email address
+         * @returns {Array<Object>} Array of job objects that user has saved
+         * @note Returns empty array if user has no saved jobs or doesn't exist
+         */
+        getUserSavedJobs: function(userEmail) {
+            const key = `saved_jobs_${userEmail}`;
+            const jobIds = JSON.parse(localStorage.getItem(key)) || [];
+            return jobIds.map(jobId => this.getJob(jobId)).filter(job => job);
+        },
+        
+        // ============================================================================
+        // JOB APPLICATIONS MANAGEMENT
+        // ============================================================================
+        
+        /**
+         * @function getUserApplications
+         * @description Retrieves all job applications submitted by a specific user.
+         * @param {string} userEmail - Applicant's email address
+         * @returns {Array<Object>} Array of application objects where user is applicant
+         * @note Filters from global applications array by applicantEmail field
+         */
+        getUserApplications: function(userEmail) {
+            const appsKey = 'applications';
+            const applications = JSON.parse(localStorage.getItem(appsKey)) || [];
+            return applications.filter(app => app.applicantEmail === userEmail);
+        },
+        
+        /**
+         * @function createApplication
+         * @description Creates a new job application with automatic ID generation,
+         *              timestamp, and default status. Updates application analytics.
+         * @param {Object} applicationData - Partial application object containing:
+         *                 - jobId: ID of job being applied to
+         *                 - companyId: ID of hiring company
+         *                 - applicantEmail: Email of applicant
+         *                 - [other application fields like resume, cover letter]
+         * @returns {string} Generated application ID (format: app_timestamp_random)
+         * @sideeffect Adds to global applications array in LocalStorage
+         * @sideeffect Updates analytics for application count
+         * @businessLogic Sets default status to 'pending' and adds ISO timestamp
+         */
+        createApplication: function(applicationData) {
+            const appsKey = 'applications';
+            const applications = JSON.parse(localStorage.getItem(appsKey)) || [];
+            // Generate unique application ID with timestamp and random suffix
+            const applicationId = 'app_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            applicationData.applicationId = applicationId;
+            applicationData.appliedAt = new Date().toISOString();
+            applicationData.status = 'pending';
+            applications.push(applicationData);
+            localStorage.setItem(appsKey, JSON.stringify(applications));
+            
+            // Record application event in company analytics
+            this.updateAnalyticsLog(applicationData.companyId, 'applicationReceived');
+            
+            return applicationId;
+        },
+        
+        /**
+         * @function getCompanyApplications
+         * @description Retrieves all applications received by a specific company.
+         * @param {string} companyId - Company identifier
+         * @returns {Array<Object>} Array of application objects for the company
+         */
+        getCompanyApplications: function(companyId) {
+            const appsKey = 'applications';
+            const applications = JSON.parse(localStorage.getItem(appsKey)) || [];
+            return applications.filter(app => app.companyId === companyId);
+        },
+        
+        /**
+         * @function updateApplicationStatus
+         * @description Updates the status of a job application (e.g., pending →
+         *              reviewed → accepted/rejected). Used by companies to
+         *              manage application workflow.
+         * @param {string} applicationId - Unique application identifier
+         * @param {string} status - New status value
+         * @returns {boolean} true if application was found and updated, false otherwise
+         * @sideeffect Updates application object in global applications array
+         */
+        updateApplicationStatus: function(applicationId, status) {
+            const appsKey = 'applications';
+            const applications = JSON.parse(localStorage.getItem(appsKey)) || [];
+            const appIndex = applications.findIndex(app => app.applicationId === applicationId);
+            if (appIndex > -1) {
+                applications[appIndex].status = status;
+                localStorage.setItem(appsKey, JSON.stringify(applications));
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * @function hasUserApplied
+         * @description Checks if a user has already applied to a specific job.
+         *              Used to prevent duplicate applications.
+         * @param {string} userEmail - Applicant's email
+         * @param {string} jobId - Job identifier to check
+         * @returns {boolean} true if user has a non-rejected application for this job
+         * @businessLogic Considers only non-rejected applications as "applied"
+         *                status to allow reapplication after rejection
+         */
+        hasUserApplied: function(userEmail, jobId) {
+            const appsKey = 'applications';
+            const applications = JSON.parse(localStorage.getItem(appsKey)) || [];
+            return applications.some(app => 
+                app.applicantEmail === userEmail && 
+                app.jobId === jobId &&
+                app.status !== 'rejected'
+            );
+        },
+        
+        // ============================================================================
+        // ANALYTICS AND REPORTING
+        // ============================================================================
+        
+        /**
+         * @function updateAnalyticsLog
+         * @description Records analytics events (job postings, applications)
+         *              with daily aggregation. Creates or updates daily entries.
+         * @param {string} companyId - Company identifier for analytics segregation
+         * @param {string} eventType - Type of event: 'jobPosted' or 'applicationReceived'
+         * @sideeffect Creates/updates analytics log array in LocalStorage under
+         *             key `analytics_log_${companyId}`
+         * @businessLogic Aggregates counts per day (date string as key).
+         *                Maintains separate total for jobs and applications.
+         */
+        updateAnalyticsLog: function(companyId, eventType) {
+            // Get current date in YYYY-MM-DD format for daily aggregation
+            const today = new Date().toISOString().split('T')[0];
+            const key = `analytics_log_${companyId}`;
+            let log = JSON.parse(localStorage.getItem(key)) || [];
+            
+            // Find or create today's analytics entry
+            let todayEntry = log.find(entry => entry.date === today);
+            if (!todayEntry) {
+                todayEntry = { date: today, totalJobs: 0, totalApplications: 0 };
+                log.push(todayEntry);
+            }
+            
+            // Increment appropriate counter based on event type
+            if (eventType === 'jobPosted') {
+                todayEntry.totalJobs++;
+            } else if (eventType === 'applicationReceived') {
+                todayEntry.totalApplications++;
+            }
+            
+            localStorage.setItem(key, JSON.stringify(log));
+        },
+        
+        /**
+         * @function getAnalyticsLog
+         * @description Retrieves analytics log for a specific company.
+         * @param {string} companyId - Company identifier
+         * @returns {Array<Object>} Array of daily analytics objects containing:
+         *          - date: ISO date string (YYYY-MM-DD)
+         *          - totalJobs: Number of jobs posted that day
+         *          - totalApplications: Number of applications received that day
+         */
+        getAnalyticsLog: function(companyId) {
+            const key = `analytics_log_${companyId}`;
+            return JSON.parse(localStorage.getItem(key)) || [];
+        },
+        
+        // ============================================================================
+        // SESSION MANAGEMENT
+        // ============================================================================
+        
+        /**
+         * @function updateCurrentUser
+         * @description Sets the currently logged-in user's email in session storage.
+         *              Used to maintain login state across page reloads.
+         * @param {string} email - Email of logged-in user
+         * @sideeffect Stores email in LocalStorage under key 'currentUser'
+         * @note This is separate from user data storage - only stores reference
+         */
+        updateCurrentUser: function(email) {
+            localStorage.setItem('currentUser', email);
+        },
+        
+        /**
+         * @function getCurrentUser
+         * @description Retrieves the currently logged-in user's full profile.
+         * @returns {Object|null} Current user object if logged in, null otherwise
+         * @sideeffect Reads from LocalStorage and fetches user data by email
+         */
+        getCurrentUser: function() {
+            const email = localStorage.getItem('currentUser');
+            return email ? this.getUser(email) : null;
+        },
+        
+        /**
+         * @function clearCurrentUser
+         * @description Logs out current user by removing session reference.
+         * @sideeffect Removes 'currentUser' key from LocalStorage
+         */
+        clearCurrentUser: function() {
+            localStorage.removeItem('currentUser');
+        },
+        
+        /**
+         * @function updateCurrentCompany
+         * @description Sets the currently logged-in company admin in session storage.
+         * @param {string} companyId - Company identifier
+         * @sideeffect Stores companyId in LocalStorage under key 'currentCompany'
+         */
+        updateCurrentCompany: function(companyId) {
+            localStorage.setItem('currentCompany', companyId);
+        },
+        
+        /**
+         * @function getCurrentCompany
+         * @description Retrieves the currently logged-in company's full profile.
+         * @returns {Object|null} Current company object if logged in, null otherwise
+         */
+        getCurrentCompany: function() {
+            const companyId = localStorage.getItem('currentCompany');
+            return companyId ? this.getCompany(companyId) : null;
+        },
+        
+        /**
+         * @function clearCurrentCompany
+         * @description Logs out current company admin by removing session reference.
+         * @sideeffect Removes 'currentCompany' key from LocalStorage
+         */
+        clearCurrentCompany: function() {
+            localStorage.removeItem('currentCompany');
+        },
+        
+        // ============================================================================
+        // DEVELOPMENT AND TESTING UTILITIES
+        // ============================================================================
+        
+        /**
+         * @function initializeSampleData
+         * @description Populates LocalStorage with sample data for testing/demo.
+         *              Only runs if LocalStorage is completely empty.
+         * @sideeffect Creates sample company, user, and job posting
+         * @warning For development only - should be removed or disabled in production
+         *          to prevent overwriting real user data
+         */
+        initializeSampleData: function() {
+            // Safety check: Only initialize if LocalStorage is empty
+            // Prevents overwriting existing user data
+            if (localStorage.length === 0) {
+                // Create sample company with generated ID
+                const companyId = 'comp_' + Date.now();
+                const companyData = {
+                    companyId: companyId,
+                    name: 'Sample Corporation',
+                    adminEmail: 'admin@sample.com',
+                    password: 'admin123'  // SECURITY RISK: Plain text password
+                };
+                this.saveCompany(companyId, companyData);
+                
+                // Create sample job seeker user
+                const userData = {
+                    email: 'user@example.com',
+                    password: 'password123',  // SECURITY RISK: Plain text password
+                    name: 'John Doe'
+                };
+                this.saveUser('user@example.com', userData);
+                
+                // Create sample job posting
+                const jobId = 'job_' + Date.now();
+                const jobData = {
+                    jobId: jobId,
+                    companyId: companyId,
+                    title: 'Frontend Developer',
+                    companyName: 'Sample Corporation',
+                    location: 'Lagos, Nigeria',
+                    category: 'Technology',
+                    salary: '₦150,000 - ₦250,000',
+                    description: 'We are looking for a skilled Frontend Developer to join our team.',
+                    companyEmail: 'admin@sample.com',
+                    postedAt: new Date().toISOString(),
+                    status: 'approved'  // Pre-approved for immediate visibility
+                };
+                this.saveJob(jobId, jobData);
+            }
+        }
+    };
+
+    // ============================================================================
+    // UI UTILITIES MODULE
+    // ============================================================================
+    /**
+     * @namespace UI
+     * @description UI manipulation utilities for toast notifications and
+     *              user information updates. Handles visual feedback and
+     *              dynamic content updates.
+     */
+    const UI = {
+        /**
+         * @function showToast
+         * @description Displays a temporary toast notification with configurable
+         *              type (success, error, info). Uses CSS transitions for
+         *              smooth appearance and auto-dismissal after 3 seconds.
+         * @param {string} message - Text content to display in toast
+         * @param {string} [type='success'] - Notification type: 'success', 'error', or 'info'
+         * @sideeffect Modifies DOM: Updates toast element content, classes, and visibility
+         * @sideeffect Sets timeout for auto-dismissal
+         * @UX Provides immediate feedback for user actions (saves, errors, info)
+         */
+        showToast: function(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toast-icon');
+            const toastMessage = document.getElementById('toast-message');
+            
+            // Configure icon and color based on notification type
+            if (type === 'success') {
+                toastIcon.textContent = 'check_circle';
+                toastIcon.className = 'material-symbols-outlined text-green-400';
+            } else if (type === 'error') {
+                toastIcon.textContent = 'error';
+                toastIcon.className = 'material-symbols-outlined text-red-400';
+            } else {
+                toastIcon.textContent = 'info';
+                toastIcon.className = 'material-symbols-outlined text-blue-400';
+            }
+            
+            // Update message text
+            toastMessage.textContent = message;
+            
+            // Animate toast into view
+            toast.classList.remove('opacity-0', '-translate-y-10');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            
+            // Auto-dismiss after 3 seconds (standard UX pattern)
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-10');
+            }, 3000);
+        },
+        
+        /**
+         * @function updateSlideOverUser
+         * @description Updates the user information panel (slide-over menu)
+         *              based on current authentication state. Shows different
+         *              UI for company admins vs. regular users vs. logged-out state.
+         * @sideeffect Modifies DOM: Updates text content and icons in slide-over
+         * @dependency Relies on DataStore.getCurrentUser() and getCurrentCompany()
+         * @businessLogic Determines display mode based on authentication:
+         *                - Company admin: Shows company info with admin icon
+         *                - Regular user: Shows user info with person icon
+         *                - Logged out: Shows placeholder with sign-in prompt
+         */
+        updateSlideOverUser: function() {
+            const currentUser = DataStore.getCurrentUser();
+            const currentCompany = DataStore.getCurrentCompany();
+            
+            // DOM elements in slide-over panel
+            const userIcon = document.getElementById('slide-user-icon');
+            const userName = document.getElementById('slide-user-name');
+            const userEmail = document.getElementById('slide-user-email');
+            const logoutBtn = document.getElementById('slide-logout-btn');
+            
+            if (currentCompany) {
+                // ADMIN MODE: Company administrator is logged in
+                userIcon.textContent = 'admin_panel_settings';
+                userName.textContent = currentCompany.name || 'Company Admin';
+                userEmail.textContent = currentCompany.adminEmail || 'Administrator';
+                logoutBtn.innerHTML = '<span class="material-symbols-outlined text-gray-600 dark:text-gray-400">logout</span><span class="text-base font-normal text-red-500">Log Out Admin</span>';
+            } else if (currentUser) {
+                // USER MODE: Regular job seeker is logged in
+                userIcon.textContent = 'person';
+                userName.textContent = currentUser.name || 'Job Seeker';
+                userEmail.textContent = currentUser.email;
+                logoutBtn.innerHTML = '<span class="material-symbols-outlined text-gray-600 dark:text-gray-400">logout</span><span class="text-base font-normal text-red-500">Log Out</span>';
+            } else {
+                // DEFAULT: No authentication (logged out state)
+                userIcon.textContent = 'person';
+                userName.textContent = 'User Account';
+                userEmail.textContent = 'Sign in to view details';
+                logoutBtn.innerHTML = '<span class="material-symbols-outlined text-gray-600 dark:text-gray-400">logout</span><span class="text-base font-normal text-red-500">Sign In</span>';
+            }
+        }
+    };
+
+    // ============================================================================
+    // NAVIGATION MODULE - SCREEN MANAGEMENT AND AUTHENTICATION
+    // ============================================================================
+    /**
+     * @namespace Navigation
+     * @description Manages screen navigation, authentication gating, and UI state
+     *              synchronization across the application. Controls which screen
+     *              is visible and enforces access rules based on user roles.
+     */
+    const Navigation = {
+        /**
+         * @property {Object} screens
+         * @description DOM references to main application screens. Each screen
+         *              is expected to have an 'active' CSS class controlling visibility.
+         * @property {HTMLElement} screens.home - Home/welcome screen
+         * @property {HTMLElement} screens.jobs - Job listing/browsing screen
+         * @property {HTMLElement} screens.admin - Company admin dashboard screen
+         */
+        screens: {
+            home: document.getElementById('home-screen'),
+            jobs: document.getElementById('jobs-screen'),
+            admin: document.getElementById('admin-screen')
+        },
+        
+        /**
+         * @property {Object} navButtons
+         * @description DOM references to bottom navigation buttons. Used to
+         *              update visual active state and attach click handlers.
+         */
+        navButtons: {
+            home: document.getElementById('nav-home'),
+            jobs: document.getElementById('nav-jobs'),
+            admin: document.getElementById('nav-admin')
+        },
+        
+        /**
+         * @function switchScreen
+         * @description Main navigation controller. Switches between application
+         *              screens with authentication checks and UI state updates.
+         * @param {string} screenName - Target screen: 'home', 'jobs', or 'admin'
+         * @sideeffect Modifies DOM: Shows/hides screens, updates navigation states
+         * @sideeffect Calls external functions: Jobs.showView(), UI.updateSlideOverUser()
+         * @sideeffect Performs authentication checks and shows appropriate gates
+         * @businessLogic Enforces access rules:
+         *                - Jobs screen: Requires user OR company authentication
+         *                - Admin screen: Requires company admin authentication
+         *                - Home screen: Accessible to all (with auth-gated content)
+         */
+        switchScreen: function(screenName) {
+            const currentUser = DataStore.getCurrentUser();
+            const currentCompany = DataStore.getCurrentCompany();
+            
+            // ============================================================================
+            // AUTHENTICATION GATES
+            // ============================================================================
+            
+            // GATE: Jobs screen requires authentication (user or company)
+            if (screenName === 'jobs') {
+                if (!currentUser && !currentCompany) {
+                    // If not authenticated at all, stay on home screen
+                    if (!this.screens.home.classList.contains('active')) {
+                        this.switchScreen('home');
+                    }
+                    // Show authentication gate on home screen instead
+                    const homeAuthGate = document.getElementById('home-auth-gate');
+                    const homeAuthenticated = document.getElementById('home-authenticated');
+                    if (homeAuthGate) homeAuthGate.classList.remove('hidden');
+                    if (homeAuthenticated) homeAuthenticated.classList.add('hidden');
+                    
+                    // Provide feedback to user about requirement
+                    UI.showToast('Please sign in to browse jobs', 'error');
+                    return;  // Stop navigation to jobs screen
+                }
+            }
+            
+            // GATE: Admin screen requires company admin authentication
+            if (screenName === 'admin') {
+                if (!currentCompany) {
+                    // Show admin login gate and hide admin content
+                    const adminGate = document.getElementById('admin-gate');
+                    const adminContent = document.getElementById('admin-content');
+                    if (adminGate) adminGate.classList.remove('hidden');
+                    if (adminContent) adminContent.classList.add('hidden');
+                    
+                    // If regular user is logged in, explain they need admin credentials
+                    if (currentUser) {
+                        UI.showToast('Admin access requires company credentials', 'error');
+                    }
+                }
+            }
+            
+            // ============================================================================
+            // SCREEN SWITCHING LOGIC
+            // ============================================================================
+            
+            // Hide all screens (remove 'active' class which controls visibility)
+            Object.values(this.screens).forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Show selected screen (add 'active' class)
+            this.screens[screenName].classList.add('active');
+            
+            // ============================================================================
+            // SCREEN-SPECIFIC INITIALIZATION
+            // ============================================================================
+            
+            // Jobs screen: Reset to listing view and configure admin-only features
+            if (screenName === 'jobs') {
+                // Assumes Jobs module exists with showView() function
+                Jobs.showView('listing');
+                
+                // Show/hide "Post Job" button based on admin privileges
+                const postJobBtn = document.getElementById('open-post-job');
+                if (postJobBtn) {
+                    if (currentCompany) {
+                        // Company admin: Show button and set handler
+                        postJobBtn.style.display = 'flex';
+                        postJobBtn.onclick = () => Jobs.showView('post');
+                    } else {
+                        // Regular user: Hide button and remove handler
+                        postJobBtn.style.display = 'none';
+                        postJobBtn.onclick = null;
+                    }
+                }
+            }
+            
+            // ============================================================================
+            // UI STATE UPDATES
+            // ============================================================================
+            
+            // Update navigation button visual states
+            this.updateNavButtons(screenName);
+            
+            // Update authentication-dependent UI across all screens
+            this.updateAuthUI();
+            
+            // Update user info in slide-over panel
+            UI.updateSlideOverUser();
+        },
+        
+        /**
+         * @function updateNavButtons
+         * @description Updates visual state of bottom navigation buttons to
+         *              indicate active screen. Uses CSS classes and Material
+         *              Symbols font variations.
+         * @param {string} activeScreen - Name of currently active screen
+         * @sideeffect Modifies DOM: Updates classes and font properties of nav buttons
+         * @visualFeedback Changes button color, icon fill, and label weight
+         */
+        updateNavButtons: function(activeScreen) {
+            Object.entries(this.navButtons).forEach(([screen, btn]) => {
+                const icon = btn.querySelector('.material-symbols-outlined');
+                const label = btn.querySelector('span.text-\\[10px\\]');
+                
+                if (screen === activeScreen) {
+                    // Active state: Primary color, filled icon, bold label
+                    btn.classList.remove('text-gray-400');
+                    btn.classList.add('text-primary');
+                    icon.style.fontVariationSettings = "'FILL' 1";
+                    label.classList.remove('font-medium');
+                    label.classList.add('font-bold');
+                } else {
+                    // Inactive state: Gray color, outlined icon, medium weight label
+                    btn.classList.remove('text-primary');
+                    btn.classList.add('text-gray-400');
+                    icon.style.fontVariationSettings = "'FILL' 0";
+                    label.classList.remove('font-bold');
+                    label.classList.add('font-medium');
+                }
+            });
+        },
+        
+        /**
+         * @function updateAuthUI
+         * @description Synchronizes UI across all screens based on authentication
+         *              state. Shows/hides authentication gates, updates welcome
+         *              messages, and loads appropriate data for each screen.
+         * @sideeffect Modifies DOM: Multiple elements across different screens
+         * @sideeffect Calls external functions: Home.loadSavedJobs(), Home.loadAppliedJobs(),
+         *             Admin.loadDashboardData(), UI.updateSlideOverUser(), SlideOver.open()
+         * @businessLogic Maintains consistent authentication state across entire UI
+         */
+        updateAuthUI: function() {
+            const currentUser = DataStore.getCurrentUser();
+            const currentCompany = DataStore.getCurrentCompany();
+            
+            // ============================================================================
+            // HOME SCREEN AUTHENTICATION STATE
+            // ============================================================================
+            
+            const homeAuthGate = document.getElementById('home-auth-gate');
+            const homeAuthenticated = document.getElementById('home-authenticated');
+            const homeWelcome = document.getElementById('home-welcome');
+            const homeHamburgerMenu = document.getElementById('home-hamburger-menu');
+            
+            if (currentUser) {
+                // User is logged in: Show authenticated content
+                homeAuthGate.classList.add('hidden');
+                homeAuthenticated.classList.remove('hidden');
+                homeWelcome.textContent = `Welcome back, ${currentUser.name || 'User'}`;
+                
+                // Show hamburger menu (user menu) only when authenticated on home screen
+                if (homeHamburgerMenu) {
+                    homeHamburgerMenu.classList.remove('hidden');
+                }
+                
+                // Load user-specific data for home screen
+                // Assumes Home module exists with these functions
+                Home.loadSavedJobs();
+                Home.loadAppliedJobs();
+            } else {
+                // User is not logged in: Show authentication gate
+                homeAuthGate.classList.remove('hidden');
+                homeAuthenticated.classList.add('hidden');
+                
+                // Hide hamburger menu when not authenticated
+                if (homeHamburgerMenu) {
+                    homeHamburgerMenu.classList.add('hidden');
+                }
+            }
+            
+            // ============================================================================
+            // ADMIN SCREEN AUTHENTICATION STATE
+            // ============================================================================
+            
+            const adminGate = document.getElementById('admin-gate');
+            const adminContent = document.getElementById('admin-content');
+            
+            if (currentCompany) {
+                // Company admin is logged in: Show admin dashboard
+                adminGate.classList.add('hidden');
+                adminContent.classList.remove('hidden');
+                
+                // Load admin-specific data
+                // Assumes Admin module exists with loadDashboardData() function
+                Admin.loadDashboardData();
+            } else {
+                // No admin logged in: Show admin login gate
+                adminGate.classList.remove('hidden');
+                adminContent.classList.add('hidden');
+            }
+            
+            // ============================================================================
+            // SLIDE-OVER USER PANEL UPDATE
+            // ============================================================================
+            
+            UI.updateSlideOverUser();
+
+            // ============================================================================
+            // HAMBURGER MENU BEHAVIOR PER ROLE
+            // ============================================================================
+            
+            // Jobs screen hamburger menu: Only enabled for regular users (not admins)
+            const jobsHamburger = document.getElementById('jobs-hamburger-menu');
+            const adminHamburger = document.getElementById('admin-hamburger-menu');
+
+            if (jobsHamburger) {
+                if (currentUser && !currentCompany) {
+                    // Regular user on jobs screen: Enable menu
+                    jobsHamburger.style.pointerEvents = 'auto';
+                    jobsHamburger.onclick = () => SlideOver.open();  // Assumes SlideOver module exists
+                } else {
+                    // Admin or logged out: Disable menu
+                    jobsHamburger.style.pointerEvents = 'none';
+                    jobsHamburger.onclick = null;
+                }
+            }
+
+            if (adminHamburger) {
+                if (currentCompany) {
+                    // Admin on admin screen: Enable menu
+                    adminHamburger.style.pointerEvents = 'auto';
+                    adminHamburger.onclick = () => SlideOver.open();  // Assumes SlideOver module exists
+                } else {
+                    // Non-admin: Disable menu
+                    adminHamburger.style.pointerEvents = 'none';
+                    adminHamburger.onclick = null;
+                }
+            }
+        }
+    };
+
 </body>
 
 </html>
+
 
