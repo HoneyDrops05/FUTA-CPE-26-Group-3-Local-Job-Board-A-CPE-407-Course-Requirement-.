@@ -2285,10 +2285,864 @@ TOAST CONTAINER:
                 }
             }
         }
+      // ===== HOME SCREEN FUNCTIONALITY =====
+
+/**
+ * Home screen controller - Manages all authentication and user dashboard functionality for the home screen.
+ * 
+ * This object encapsulates the business logic for:
+ * - User authentication (sign in / sign up)
+ * - Displaying saved jobs for authenticated users
+ * - Displaying job applications with status tracking
+ * - Managing UI state for authentication forms
+ * 
+ * Dependencies:
+ * - DataStore: Global data persistence layer (defined elsewhere)
+ * - Navigation: Screen routing system (defined elsewhere) 
+ * - UI: Shared UI utilities including toast notifications (defined elsewhere)
+ * - SlideOver: Mobile menu component (defined elsewhere)
+ */
+const Home = {
+    /**
+     * Initializes the home screen by attaching event listeners to DOM elements.
+     * This method should be called once when the home screen is first loaded.
+     * 
+     * Side Effects:
+     * - Binds click handlers to authentication tab buttons
+     * - Binds click handlers to form submission buttons  
+     * - Binds keypress handlers for Enter key submission on password fields
+     * - Binds click handler for hamburger menu to open slide-over panel
+     * - Modifies DOM by adding event listeners
+     * 
+     * Assumptions:
+     * - All required DOM elements with specified IDs exist in the document
+     * - SlideOver.open() is defined globally
+     */
+    init: function() {
+        // Auth tabs - Toggle between Sign In and Sign Up forms
+        document.getElementById('tab-signin').addEventListener('click', () => this.switchAuthTab('signin'));
+        document.getElementById('tab-signup').addEventListener('click', () => this.switchAuthTab('signup'));
+        
+        // Auth forms - Handle form submission via button clicks
+        document.getElementById('signin-submit').addEventListener('click', () => this.signIn());
+        document.getElementById('signup-submit').addEventListener('click', () => this.signUp());
+        
+        // Allow Enter key submission - Improves UX by enabling keyboard navigation
+        document.getElementById('signin-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.signIn();
+        });
+        
+        document.getElementById('signup-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.signUp();
+        });
+        
+        // Hamburger menu for home screen - Opens mobile navigation panel
+        document.getElementById('home-hamburger-menu').addEventListener('click', () => SlideOver.open());
+    },
+    
+    /**
+     * Switches between Sign In and Sign Up tabs on the authentication panel.
+     * Updates visual state of tabs and toggles visibility of corresponding forms.
+     * 
+     * @param {string} tab - The tab to activate ('signin' or 'signup')
+     * 
+     * Side Effects:
+     * - Modifies CSS classes on tab buttons to show active/inactive state
+     * - Toggles 'hidden' class on form containers to show/hide forms
+     * 
+     * Business Logic:
+     * - Active tab: primary color with bottom border indicator
+     * - Inactive tab: muted gray color
+     * - Only one form is visible at any time
+     */
+    switchAuthTab: function(tab) {
+        const signinTab = document.getElementById('tab-signin');
+        const signupTab = document.getElementById('tab-signup');
+        const signinForm = document.getElementById('signin-form');
+        const signupForm = document.getElementById('signup-form');
+        
+        if (tab === 'signin') {
+            // Activate Sign In tab, deactivate Sign Up tab
+            signinTab.classList.add('text-primary', 'border-b-2', 'border-primary');
+            signinTab.classList.remove('text-[#4e6797]', 'dark:text-gray-400');
+            signupTab.classList.remove('text-primary', 'border-b-2', 'border-primary');
+            signupTab.classList.add('text-[#4e6797]', 'dark:text-gray-400');
+            // Show Sign In form, hide Sign Up form
+            signinForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+        } else {
+            // Activate Sign Up tab, deactivate Sign In tab
+            signupTab.classList.add('text-primary', 'border-b-2', 'border-primary');
+            signupTab.classList.remove('text-[#4e6797]', 'dark:text-gray-400');
+            signinTab.classList.remove('text-primary', 'border-b-2', 'border-primary');
+            signinTab.classList.add('text-[#4e6797]', 'dark:text-gray-400');
+            // Show Sign Up form, hide Sign In form
+            signupForm.classList.remove('hidden');
+            signinForm.classList.add('hidden');
+        }
+    },
+    
+    /**
+     * Authenticates a user with email and password credentials.
+     * Validates input, checks credentials against stored user data,
+     * and manages session state on successful authentication.
+     * 
+     * Side Effects:
+     * - Reads values from signin-email and signin-password input fields
+     * - Displays validation errors in signin-error element
+     * - On success: Updates current user in DataStore, refreshes auth UI, shows toast
+     * - On success: Clears form fields, shows hamburger menu
+     * - On failure: Displays error message
+     * 
+     * Dependencies:
+     * - DataStore.getUser(email): Retrieves user object from storage
+     * - DataStore.updateCurrentUser(email): Sets active session
+     * - Navigation.updateAuthUI(): Updates navigation based on auth state
+     * - UI.showToast(): Displays notification
+     * 
+     * Business Rules:
+     * - Both email and password are required
+     * - User must exist in DataStore
+     * - Password must match exactly (plain text - security note: this should be hashed in production)
+     */
+    signIn: function() {
+        const email = document.getElementById('signin-email').value.trim();
+        const password = document.getElementById('signin-password').value;
+        const errorElement = document.getElementById('signin-error');
+        
+        // Validation: All fields must be populated
+        if (!email || !password) {
+            errorElement.textContent = 'Please fill in all fields';
+            errorElement.classList.remove('hidden');
+            return;
+        }
+        
+        // Attempt to retrieve user from persistent storage
+        const user = DataStore.getUser(email);
+        
+        // Authentication check: Verify user exists and password matches
+        if (user && user.password === password) {
+            // Success: Set session state
+            DataStore.updateCurrentUser(email);
+            Navigation.updateAuthUI();
+            UI.showToast('Signed in successfully', 'success');
+            errorElement.classList.add('hidden');
+            
+            // Clear form fields for security and UX
+            document.getElementById('signin-email').value = '';
+            document.getElementById('signin-password').value = '';
+            
+            // Update hamburger menu visibility - only shown to authenticated users
+            const homeHamburgerMenu = document.getElementById('home-hamburger-menu');
+            if (homeHamburgerMenu) {
+                homeHamburgerMenu.classList.remove('hidden');
+            }
+        } else {
+            // Authentication failed: Generic error message (doesn't reveal whether email or password was incorrect)
+            errorElement.textContent = 'Invalid email or password';
+            errorElement.classList.remove('hidden');
+        }
+    },
+    
+    /**
+     * Registers a new user account with name, email, and password.
+     * Validates input, checks for duplicate accounts, and persists user data.
+     * 
+     * Side Effects:
+     * - Reads values from signup-name, signup-email, and signup-password input fields
+     * - Displays validation errors in signup-error element
+     * - On success: Saves user to DataStore, shows success toast, clears form
+     * - On success: Switches to sign in tab and pre-fills email
+     * 
+     * Dependencies:
+     * - DataStore.getUser(email): Checks for existing user
+     * - DataStore.saveUser(email, userData): Persists new user
+     * - UI.showToast(): Displays notification
+     * - this.switchAuthTab(): Switches to sign in view
+     * 
+     * Business Rules:
+     * - All fields (name, email, password) are required
+     * - Email must be unique in the system
+     * - Passwords are stored as plain text (security note: should be hashed in production)
+     */
+    signUp: function() {
+        const name = document.getElementById('signup-name').value.trim();
+        const email = document.getElementById('signup-email').value.trim();
+        const password = document.getElementById('signup-password').value;
+        const errorElement = document.getElementById('signup-error');
+        
+        // Validation: All fields must be populated
+        if (!name || !email || !password) {
+            errorElement.textContent = 'Please fill in all fields';
+            errorElement.classList.remove('hidden');
+            return;
+        }
+        
+        // Check if user already exists - enforce unique email constraint
+        if (DataStore.getUser(email)) {
+            errorElement.textContent = 'User with this email already exists';
+            errorElement.classList.remove('hidden');
+            return;
+        }
+        
+        // Save user
+        const userData = {
+            email: email,
+            password: password,
+            name: name
+        };
+        
+        DataStore.saveUser(email, userData);
+        UI.showToast('Account created successfully', 'success');
+        errorElement.classList.add('hidden');
+        
+        // Clear form for security and UX
+        document.getElementById('signup-name').value = '';
+        document.getElementById('signup-email').value = '';
+        document.getElementById('signup-password').value = '';
+        
+        // Switch to sign in tab and pre-fill email for convenience
+        this.switchAuthTab('signin');
+        document.getElementById('signin-email').value = email;
+    },
+    
+    /**
+     * Loads and displays jobs saved by the currently authenticated user.
+     * Dynamically generates job cards for each saved job.
+     * 
+     * Side Effects:
+     * - Queries DataStore for current user and their saved jobs
+     * - Clears and repopulates the saved-jobs-container element
+     * - Renders either an empty state message or interactive job cards
+     * - Binds click handlers to each job card for navigation to job details
+     * 
+     * Dependencies:
+     * - DataStore.getCurrentUser(): Retrieves active session user
+     * - DataStore.getUserSavedJobs(email): Retrieves user's saved jobs
+     * - Navigation.switchScreen(): Navigates to jobs screen
+     * - Jobs.showView(): Displays specific job details
+     * 
+     * Conditional Rendering:
+     * - If no user is logged in: Function exits early (no rendering)
+     * - If no saved jobs: Displays "No saved jobs yet" message
+     * - If saved jobs exist: Renders each job as an interactive card
+     * 
+     * UX Behavior:
+     * - Clicking a saved job navigates to jobs screen and opens job details
+     * - 100ms delay allows for screen transition before loading details
+     */
+    loadSavedJobs: function() {
+        const currentUser = DataStore.getCurrentUser();
+        if (!currentUser) return;
+        
+        const savedJobs = DataStore.getUserSavedJobs(currentUser.email);
+        const container = document.getElementById('saved-jobs-container');
+        
+        container.innerHTML = '';
+        
+        // Empty state handling
+        if (savedJobs.length === 0) {
+            container.innerHTML = `
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                    <p class="text-gray-500 dark:text-gray-400">No saved jobs yet</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render each saved job as an interactive card
+        savedJobs.forEach(job => {
+            const jobCard = document.createElement('div');
+            jobCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer saved-job-card';
+            jobCard.dataset.jobId = job.jobId;
+            
+            jobCard.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${job.title}</h4>
+                        <div class="flex items-center text-sm text-[#4e6797] dark:text-gray-400 mt-1">
+                            <span class="material-symbols-outlined text-[18px] mr-1">location_on</span>
+                            <span>${job.location}</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-3">
+                            <span class="text-primary font-bold text-sm bg-primary/10 px-3 py-1 rounded-full">${job.salary}</span>
+                            <span class="text-xs text-gray-400 uppercase font-semibold">${job.category}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Navigate to job details when card is clicked
+            jobCard.addEventListener('click', () => {
+                Navigation.switchScreen('jobs');
+                // Delay allows screen transition to complete before loading details
+                setTimeout(() => {
+                    Jobs.showView('details', job.jobId);
+                }, 100);
+            });
+            
+            container.appendChild(jobCard);
+        });
+    },
+    
+    /**
+     * Loads and displays job applications submitted by the currently authenticated user.
+     * Shows application status and applied date for each application.
+     * 
+     * Side Effects:
+     * - Queries DataStore for current user and their applications
+     * - Fetches full job details for each application
+     * - Clears and repopulates the applied-jobs-container element
+     * - Renders empty state message or interactive application cards with status badges
+     * - Binds click handlers to each application card for job details navigation
+     * 
+     * Dependencies:
+     * - DataStore.getCurrentUser(): Retrieves active session user
+     * - DataStore.getUserApplications(email): Retrieves user's applications
+     * - DataStore.getJob(jobId): Retrieves full job details
+     * - Navigation.switchScreen(): Navigates to jobs screen
+     * - Jobs.showView(): Displays specific job details
+     * 
+     * Business Logic:
+     * - Applications have three possible statuses: pending, approved, rejected
+     * - Status is visually represented by color-coded badges
+     * - Applications without corresponding job data are skipped (data integrity fallback)
+     * 
+     * UX Behavior:
+     * - Clicking an application navigates to the specific job details
+     * - Applied date is formatted to locale-specific string
+     * - 100ms delay allows for smooth screen transition
+     */
+    loadAppliedJobs: function() {
+        const currentUser = DataStore.getCurrentUser();
+        if (!currentUser) return;
+        
+        const applications = DataStore.getUserApplications(currentUser.email);
+        const container = document.getElementById('applied-jobs-container');
+        
+        container.innerHTML = '';
+        
+        // Empty state handling
+        if (applications.length === 0) {
+            container.innerHTML = `
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                    <p class="text-gray-500 dark:text-gray-400">No applications yet</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render each application as an interactive card
+        applications.forEach(app => {
+            const job = DataStore.getJob(app.jobId);
+            if (!job) return; // Skip if job data is missing (defensive programming)
+            
+            const jobCard = document.createElement('div');
+            jobCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer';
+            jobCard.dataset.jobId = job.jobId;
+            
+            // Status badge configuration - Visual feedback for application state
+            let statusColor = 'bg-yellow-500';
+            let statusText = 'Pending';
+            if (app.status === 'approved') {
+                statusColor = 'bg-green-500';
+                statusText = 'Approved';
+            } else if (app.status === 'rejected') {
+                statusColor = 'bg-red-500';
+                statusText = 'Rejected';
+            }
+            
+            jobCard.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${job.title}</h4>
+                        <div class="flex items-center text-sm text-[#4e6797] dark:text-gray-400 mt-1">
+                            <span class="material-symbols-outlined text-[18px] mr-1">location_on</span>
+                            <span>${job.location}</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-3">
+                            <span class="text-primary font-bold text-sm bg-primary/10 px-3 py-1 rounded-full">${job.salary}</span>
+                            <span class="text-xs ${statusColor} text-white px-2 py-1 rounded-full">${statusText}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-2">
+                            Applied: ${new Date(app.appliedAt).toLocaleDateString()}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Navigate to job details when application card is clicked
+            jobCard.addEventListener('click', () => {
+                Navigation.switchScreen('jobs');
+                // Delay ensures screen transition completes before loading details
+                setTimeout(() => {
+                    Jobs.showView('details', job.jobId);
+                }, 100);
+            });
+            
+            container.appendChild(jobCard);
+        });
+    }
+};
+
+// ===== JOBS SCREEN FUNCTIONALITY =====
+
+/**
+ * Jobs screen controller - Manages all job-related functionality including listing,
+ * filtering, viewing details, applying, saving, and posting jobs.
+ * 
+ * This object encapsulates the complete job lifecycle:
+ * - Job discovery (listing, filtering, searching)
+ * - Job interaction (saving, applying)
+ * - Job details viewing
+ * - Job posting (company/admin only)
+ * 
+ * State Management:
+ * - Tracks current view (listing/details/post)
+ * - Maintains active filters and search criteria
+ * - Persists filter selections during session
+ * 
+ * Dependencies:
+ * - DataStore: Global data persistence layer (defined elsewhere)
+ * - Navigation: Screen routing system (defined elsewhere)
+ * - UI: Shared UI utilities including toast notifications (defined elsewhere)
+ * - SlideOver: Mobile menu component (defined elsewhere)
+ */
+const Jobs = {
+    /**
+     * Current view state of the jobs screen.
+     * @type {string} One of: 'listing', 'details', 'post'
+     */
+    currentView: 'listing',
+    
+    /**
+     * Currently selected job category filter.
+     * @type {string|null} Category identifier or null if no filter applied
+     */
+    selectedCategory: null,
+    
+    /**
+     * Currently selected salary range filter.
+     * @type {string|null} Salary range identifier or null if no filter applied
+     */
+    selectedSalary: null,
+    
+    /**
+     * ID of the currently viewed job (when in details view).
+     * @type {string|null}
+     */
+    currentJobId: null,
+    
+    /**
+     * Current jobs filter type for the listing view.
+     * Controls which subset of jobs to display.
+     * @type {string} One of: 'all', 'saved', 'applied'
+     */
+    currentFilter: 'all',
+    
+    /**
+     * Initializes the jobs screen by attaching event listeners to DOM elements.
+     * Configures all interactive UI components including buttons, filters, and forms.
+     * Should be called once when the jobs screen is first loaded.
+     * 
+     * Side Effects:
+     * - Checks company authentication status to conditionally show/hide post job button
+     * - Binds click handlers for view navigation (back buttons)
+     * - Binds click handlers for job actions (apply, save)
+     * - Binds click handlers for job posting form (submit, draft, cancel)
+     * - Binds click handlers for category and salary filter chips
+     * - Binds input handler for search field
+     * - Binds click handlers for filter chips (all/saved/applied)
+     * - Binds click handler for hamburger menu
+     * - Triggers initial jobs loading
+     * 
+     * Assumptions:
+     * - All required DOM elements with specified IDs exist in the document
+     * - DataStore.getCurrentCompany() returns company object or null
+     * - SlideOver.open() is defined globally
+     */
+    init: function() {
+        const currentCompany = DataStore.getCurrentCompany();
+        
+        // Post Job button - visibility controlled by company authentication status
+        const postJobBtn = document.getElementById('open-post-job');
+        if (postJobBtn) {
+            if (currentCompany) {
+                // Company admin is authenticated - show post job button
+                postJobBtn.style.display = 'flex';
+                postJobBtn.addEventListener('click', () => this.showView('post'));
+            } else {
+                // No company authenticated - hide post job button
+                postJobBtn.style.display = 'none';
+            }
+        }
+        
+        // View switching - Back buttons for navigation hierarchy
+        document.getElementById('back-from-details').addEventListener('click', () => this.showView('listing'));
+        document.getElementById('back-from-post').addEventListener('click', () => this.showView('listing'));
+        
+        // Job actions - Primary interactions for job details view
+        document.getElementById('apply-job').addEventListener('click', () => this.applyForJob());
+        document.getElementById('save-job-detail').addEventListener('click', () => this.toggleSaveJob());
+        
+        // Post job form - Job creation workflow
+        document.getElementById('submit-job-post').addEventListener('click', () => this.submitJobPost());
+        document.getElementById('save-draft').addEventListener('click', () => this.saveDraft());
+        document.getElementById('cancel-post').addEventListener('click', () => this.showView('listing'));
+        
+        // Category chips - Job type filtering
+        document.querySelectorAll('.category-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                const category = chip.dataset.category;
+                this.selectCategory(category);
+            });
+        });
+        
+        // Salary chips - Salary range filtering
+        document.querySelectorAll('.salary-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                const salary = chip.dataset.salary;
+                this.selectSalary(salary);
+            });
+        });
+        
+        // Custom salary input toggle - Shows custom salary input when 'custom' chip is selected
+        document.querySelectorAll('.salary-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                if (chip.dataset.salary === 'custom') {
+                    document.getElementById('custom-salary-input').classList.remove('hidden');
+                } else {
+                    document.getElementById('custom-salary-input').classList.add('hidden');
+                }
+            });
+        });
+        
+        // Search functionality - Real-time job filtering as user types
+        document.getElementById('job-search').addEventListener('input', (e) => {
+            this.filterJobs();
+        });
+        
+        // Filter chips - All/Saved/Applied view filtering
+        document.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                const filter = chip.dataset.filter;
+                this.setFilter(filter);
+            });
+        });
+        
+        // Hamburger menu for jobs screen - Opens mobile navigation panel
+        document.getElementById('jobs-hamburger-menu').addEventListener('click', () => SlideOver.open());
+        
+        // Load jobs on initialization - Populates initial job listing
+        this.loadJobs();
+    },
+    
+    /**
+     * Sets the current job filter type and refreshes the job listing.
+     * Updates the active state of filter chips in the UI.
+     * 
+     * @param {string} filter - Filter type to apply: 'all', 'saved', or 'applied'
+     * 
+     * Side Effects:
+     * - Removes 'active' class from all filter chips
+     * - Adds 'active' class to the selected filter chip
+     * - Updates this.currentFilter with the new filter value
+     * - Triggers a reload of the job listing
+     * 
+     * Business Logic:
+     * - 'all': Shows all approved jobs
+     * - 'saved': Shows only jobs saved by current user (requires authentication)
+     * - 'applied': Shows only jobs applied to by current user (requires authentication)
+     */
+    setFilter: function(filter) {
+        // Update active state on filter chips
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.classList.remove('active');
+            if (chip.dataset.filter === filter) {
+                chip.classList.add('active');
+            }
+        });
+        
+        this.currentFilter = filter;
+        this.loadJobs();
+    },
+    
+    /**
+     * Switches between the different view modes of the jobs screen.
+     * Manages view visibility, page title, and loads appropriate data.
+     * 
+     * @param {string} viewName - Target view: 'listing', 'details', or 'post'
+     * @param {string|null} jobId - Required for 'details' view, specifies which job to display
+     * 
+     * Side Effects:
+     * - Hides all views by removing 'active' class
+     * - Shows selected view by adding 'active' class
+     * - Updates page title text content
+     * - Updates this.currentView with the new view name
+     * - For 'details': Loads job data and stores job ID
+     * - For 'listing': Refreshes job list
+     * - For 'post': Clears the post job form
+     * 
+     * Security:
+     * - 'post' view requires company authentication
+     * - Unauthenticated access attempt shows error and redirects to admin screen
+     * 
+     * Dependencies:
+     * - DataStore.getCurrentCompany(): Verifies company authentication
+     * - UI.showToast(): Displays error message for unauthorized access
+     * - Navigation.switchScreen(): Redirects to admin screen for company login
+     */
+    showView: function(viewName, jobId = null) {
+        const currentCompany = DataStore.getCurrentCompany();
+        
+        // GATE: Post view requires admin authentication
+        if (viewName === 'post' && !currentCompany) {
+            UI.showToast('Company admin access required to post jobs', 'error');
+            Navigation.switchScreen('admin');
+            return;
+        }
+        
+        // Hide all views
+        document.querySelectorAll('.jobs-view').forEach(view => {
+            view.classList.remove('active');
+        });
+        
+        // Show selected view - Map view name to DOM element ID
+        const viewId = viewName === 'details' ? 'job-details-view' : 
+                      viewName === 'post' ? 'post-job-view' : 'jobs-listing-view';
+        document.getElementById(viewId).classList.add('active');
+        
+        // Update page title for context awareness
+        const pageTitle = document.getElementById('jobs-page-title');
+        if (viewName === 'listing') pageTitle.textContent = 'Jobs';
+        else if (viewName === 'details') pageTitle.textContent = 'Job Details';
+        else if (viewName === 'post') pageTitle.textContent = 'Post a Job';
+        
+        this.currentView = viewName;
+        
+        // If showing details view, load job data
+        if (viewName === 'details' && jobId) {
+            this.loadJobDetails(jobId);
+            this.currentJobId = jobId;
+        }
+        
+        // If showing listing view, refresh job list
+        if (viewName === 'listing') {
+            this.loadJobs();
+        }
+        
+        // If showing post view, clear form
+        if (viewName === 'post') {
+            this.clearPostForm();
+        }
+    },
+    
+    /**
+     * Loads and displays job listings based on current filter and search criteria.
+     * Core method for populating the main jobs listing view.
+     * 
+     * Side Effects:
+     * - Queries DataStore for all jobs and user-specific data (saved/applied)
+     * - Applies multiple filter layers: status, user filters, search, category, salary
+     * - Clears and repopulates the jobs-list-container element
+     * - Renders appropriate empty state messages based on context
+     * - Creates interactive job cards with applied/saved indicators
+     * - Binds click handlers to each job card for details navigation
+     * 
+     * Dependencies:
+     * - DataStore.getCurrentUser(): For user-specific filtering
+     * - DataStore.getAllJobs(): Retrieves all jobs in the system
+     * - DataStore.getUserSavedJobs(): For saved jobs filter
+     * - DataStore.getUserApplications(): For applied jobs filter
+     * - DataStore.hasUserApplied(): For applied badge display
+     * 
+     * Filtering Logic (applied in order):
+     * 1. Base: Only jobs with status === 'approved' are visible to users
+     * 2. View Filter: 'saved' or 'applied' (requires authentication)
+     * 3. Search: Text match in title, company, or location
+     * 4. Category: Exact match on job category
+     * 5. Salary: Partial match (converts salary range format)
+     * 
+     * Empty State Messages:
+     * - Context-aware messages based on active filters
+     * - Generic: "No jobs available yet. Be the first to post one!"
+     * - Saved: "No saved jobs found"
+     * - Applied: "No applied jobs found"
+     * - Search: "No jobs match your search criteria"
+     */
+    loadJobs: function() {
+        const currentUser = DataStore.getCurrentUser();
+        const jobs = DataStore.getAllJobs();
+        const container = document.getElementById('jobs-list-container');
+        const searchTerm = document.getElementById('job-search').value.toLowerCase();
+        
+        container.innerHTML = '';
+        
+        // Filter jobs based on current filter
+        let filteredJobs = jobs.filter(job => job.status === 'approved');
+        
+        // Apply user-specific filters (saved/applied) if user is authenticated
+        if (this.currentFilter === 'saved' && currentUser) {
+            const savedJobIds = DataStore.getUserSavedJobs(currentUser.email).map(job => job.jobId);
+            filteredJobs = filteredJobs.filter(job => savedJobIds.includes(job.jobId));
+        } else if (this.currentFilter === 'applied' && currentUser) {
+            const appliedJobIds = DataStore.getUserApplications(currentUser.email).map(app => app.jobId);
+            filteredJobs = filteredJobs.filter(job => appliedJobIds.includes(job.jobId));
+        }
+        
+        // Apply additional filters
+        filteredJobs = filteredJobs.filter(job => {
+            // Text search across multiple job fields
+            const matchesSearch = searchTerm === '' || 
+                job.title.toLowerCase().includes(searchTerm) || 
+                job.companyName.toLowerCase().includes(searchTerm) ||
+                job.location.toLowerCase().includes(searchTerm);
+            
+            // Category filter - exact match
+            const matchesCategory = !this.selectedCategory || job.category === this.selectedCategory;
+            
+            // Salary filter - partial match with formatting normalization
+            const matchesSalary = !this.selectedSalary || 
+                (job.salary && job.salary.includes(this.selectedSalary.replace('₦', '').replace('k', '000')));
+            
+            return matchesSearch && matchesCategory && matchesSalary;
+        });
+        
+        // Empty state handling - Context-specific messages
+        if (filteredJobs.length === 0) {
+            let message = 'No jobs available yet. Be the first to post one!';
+            if (this.currentFilter === 'saved') message = 'No saved jobs found';
+            if (this.currentFilter === 'applied') message = 'No applied jobs found';
+            if (searchTerm !== '') message = 'No jobs match your search criteria';
+            
+            container.innerHTML = `
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                    <p class="text-gray-500 dark:text-gray-400">${message}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render each job as an interactive card
+        filteredJobs.forEach(job => {
+            const jobCard = document.createElement('div');
+            jobCard.className = 'job-card bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer';
+            jobCard.dataset.jobId = job.jobId;
+            
+            // Check if job is saved by current user (for UI indicators)
+            const currentUser = DataStore.getCurrentUser();
+            let isSaved = false;
+            let hasApplied = false;
+            if (currentUser) {
+                const savedJobs = DataStore.getUserSavedJobs(currentUser.email);
+                isSaved = savedJobs.some(savedJob => savedJob.jobId === job.jobId);
+                hasApplied = DataStore.hasUserApplied(currentUser.email, job.jobId);
+            }
+            
+            // Applied badge - Visual indicator for jobs user has already applied to
+            const appliedBadge = hasApplied ? '<span class="applied-badge">Applied</span>' : '';
+            
+            jobCard.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-bold text-[#0e121b] dark:text-white">${job.title}</h3>
+                            ${appliedBadge}
+                        </div>
+                        <div class="flex items-center text-sm text-[#4e6797] dark:text-gray-400 mt-1">
+                            <span class="material-symbols-outlined text-[18px] mr-1">apartment</span>
+                            <span class="mr-3">${job.companyName}</span>
+                            <span class="material-symbols-outlined text-[18px] mr-1">location_on</span>
+                            <span>${job.location}</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-primary font-bold text-sm bg-primary/10 px-3 py-1 rounded-full">${job.salary}</span>
+                            <span class="text-xs text-gray-400 uppercase font-semibold">${job.category}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Navigate to job details when card is clicked
+            jobCard.addEventListener('click', (e) => {
+                this.showView('details', job.jobId);
+            });
+            
+            container.appendChild(jobCard);
+        });
+    },
+    
+    /**
+     * Triggers a refresh of the job listing.
+     * Wrapper method for loadJobs() to be used by event handlers.
+     * 
+     * Side Effects:
+     * - Calls this.loadJobs() to refresh the job listing
+     * 
+     * UX Purpose:
+     * - Provides a semantic method name for filter/search event handlers
+     * - Allows for future extension (debouncing, animation, etc.)
+     */
+    filterJobs: function() {
+        this.loadJobs();
+    },
+    
+    /**
+     * Handles category chip selection/deselection for job filtering.
+     * Toggles the selected category and updates UI visual state.
+     * 
+     * @param {string} category - Category identifier from chip dataset
+     * 
+     * Side Effects:
+     * - Toggles this.selectedCategory (sets to category if null, null if already selected)
+     * - Updates CSS classes on all category chips to show active/inactive states
+     * - Triggers a reload of the job listing with new filter
+     * 
+     * Visual Feedback:
+     * - Active chip: Primary color background with white text
+     * - Inactive chip: Gray background with dark text (light/dark mode aware)
+     * 
+     * UX Behavior:
+     * - Clicking an inactive chip activates it
+     * - Clicking the active chip deactivates it (clears filter)
+     * - Only one category can be active at a time
+     */
+    selectCategory: function(category) {
+        // Toggle selection
+        if (this.selectedCategory === category) {
+            this.selectedCategory = null;
+        } else {
+            this.selectedCategory = category;
+        }
+        
+        // Update UI
+        document.querySelectorAll('.category-chip').forEach(chip => {
+            if (chip.dataset.category === this.selectedCategory) {
+                chip.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-[#0e121b]', 'dark:text-white');
+                chip.classList.add('bg-primary', 'text-white');
+            } else {
+                chip.classList.remove('bg-primary', 'text-white');
+                chip.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-[#0e121b]', 'dark:text-white');
+            }
+        });
+        
+        this.loadJobs();
+    },
+    
+    /**
+     * Handles salary chip selection/deselection for job filtering.
+     * Toggles the selected salary range and updates UI visual state.
+     * 
+     * @param {string} salary - Salary range identifier from chip dataset
+     * 
+     * Side Effects:
+     * - Toggles this.selectedSalary (
+     
     };
 
 </body>
 
 </html>
+
 
 
