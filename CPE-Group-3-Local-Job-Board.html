@@ -3139,10 +3139,947 @@ const Jobs = {
      * - Toggles this.selectedSalary (
      
     };
+    // Update UI
+                /**
+                 * Updates the visual state of salary filter chips to reflect the currently selected salary range.
+                 * 
+                 * This function is called when a user clicks on a salary chip in the job filtering interface.
+                 * It applies visual styling to indicate the active selection and removes active styling from
+                 * previously selected chips. The styling uses Tailwind CSS classes for light and dark modes.
+                 * 
+                 * Dependencies:
+                 * - Expects DOM elements with class 'salary-chip' and a 'data-salary' attribute
+                 * - Uses this.selectedSalary which is set elsewhere in the JobsListing component
+                 * - Called after selection changes in the salary filter UI
+                 * 
+                 * Side Effects:
+                 * - Directly manipulates DOM element classes to update visual appearance
+                 * - No state mutation beyond class changes
+                 */
+                document.querySelectorAll('.salary-chip').forEach(chip => {
+                    // Check if this chip's salary value matches the currently selected salary
+                    if (chip.dataset.salary === this.selectedSalary) {
+                        // Remove inactive styling classes
+                        chip.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-[#0e121b]', 'dark:text-white');
+                        // Apply active styling (primary background with white text)
+                        chip.classList.add('bg-primary', 'text-white');
+                    } else {
+                        // Remove active styling from non-selected chips
+                        chip.classList.remove('bg-primary', 'text-white');
+                        // Restore default inactive styling
+                        chip.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-[#0e121b]', 'dark:text-white');
+                    }
+                });
+                
+                /**
+                 * Triggers a refresh of the jobs listing based on the newly applied salary filter.
+                 * This ensures the job cards displayed reflect the current filter selection.
+                 */
+                this.loadJobs();
+            },
+            
+            /**
+             * Loads and displays detailed information for a specific job in the detail view.
+             * 
+             * This function populates all UI elements in the job detail panel with the selected job's data,
+             * including title, location, salary, description, dynamically generated requirements,
+             * and updates interactive elements (save/apply buttons) based on the current user's state.
+             * 
+             * @param {string} jobId - Unique identifier for the job to display
+             * 
+             * Dependencies:
+             * - DataStore.getJob(): Retrieves job data from the central data store
+             * - DataStore.getCurrentUser(): Gets the currently authenticated user
+             * - DataStore.getUserSavedJobs(): Fetches saved jobs for the current user
+             * - DataStore.hasUserApplied(): Checks if user has already applied to this job
+             * - Assumes DOM elements with specific IDs exist in the job detail view
+             * 
+             * Side Effects:
+             * - Updates multiple DOM elements with job details
+             * - Modifies button text, enabled/disabled states, and styling classes
+             * - Returns early without action if jobId is invalid
+             */
+            loadJobDetails: function(jobId) {
+                // Attempt to retrieve the job object from the data store using the provided ID
+                const job = DataStore.getJob(jobId);
+                // Guard clause: exit immediately if job not found to prevent UI errors
+                if (!job) return;
+                
+                // Update UI elements
+                // Populate the detail view header with job title
+                document.getElementById('detail-title').textContent = job.title;
+                // Add location with bullet separator for visual formatting
+                document.getElementById('detail-location').textContent = job.location + ' •';
+                // Display salary or fallback text if salary is not specified
+                document.getElementById('detail-salary').textContent = job.salary || '₦0 - ₦0 /yr';
+                // Set the full job description text
+                document.getElementById('detail-description').textContent = job.description;
+                
+                // Update requirements
+                // Get reference to the requirements list container
+                const requirementsList = document.getElementById('detail-requirements');
+                // Generate dynamic requirements list based on job properties
+                // This creates tailored, job-specific requirement items rather than static content
+                requirementsList.innerHTML = `
+                    <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-green-500 text-sm mt-1">check_circle</span>
+                        <span class="text-gray-600 dark:text-gray-300 text-base">Experience in ${job.category} field</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-green-500 text-sm mt-1">check_circle</span>
+                        <span class="text-gray-600 dark:text-gray-300 text-base">Based in ${job.location.split(',')[0] || job.location}</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-green-500 text-sm mt-1">check_circle</span>
+                        <span class="text-gray-600 dark:text-gray-300 text-base">Salary expectation: ${job.salary || 'Negotiable'}</span>
+                    </li>
+                `;
+                
+                // Update save button state
+                // Retrieve currently authenticated user to determine personalized interactions
+                const currentUser = DataStore.getCurrentUser();
+                // Get references to the save and apply buttons in the detail view
+                const saveBtn = document.getElementById('save-job-detail');
+                const applyBtn = document.getElementById('apply-job');
+                
+                // Only show saved/applied states if a user is logged in
+                if (currentUser) {
+                    // Fetch the user's saved jobs collection
+                    const savedJobs = DataStore.getUserSavedJobs(currentUser.email);
+                    // Check if this specific job exists in the user's saved jobs
+                    const isSaved = savedJobs.some(savedJob => savedJob.jobId === jobId);
+                    // Check if the user has already submitted an application for this job
+                    const hasApplied = DataStore.hasUserApplied(currentUser.email, jobId);
+                    
+                    // Update save button text based on saved status
+                    if (isSaved) {
+                        saveBtn.innerHTML = 'Remove from Saved';
+                    } else {
+                        saveBtn.innerHTML = 'Save Job';
+                    }
+                    
+                    // Update apply button state based on application status
+                    if (hasApplied) {
+                        // User has already applied: disable button and show success indicator
+                        applyBtn.textContent = 'Applied ✓';
+                        applyBtn.disabled = true;
+                        applyBtn.classList.remove('bg-primary');
+                        applyBtn.classList.add('bg-green-500');
+                    } else {
+                        // User has not applied: enable button with normal styling
+                        applyBtn.textContent = 'Apply for Job';
+                        applyBtn.disabled = false;
+                        applyBtn.classList.remove('bg-green-500');
+                        applyBtn.classList.add('bg-primary');
+                    }
+                }
+            },
+            
+            /**
+             * Handles the job application submission process.
+             * 
+             * This function validates that a user is authenticated, retrieves the current job,
+             * creates an application record, persists it to the data store, and updates the UI
+             * to reflect the successful application. It also triggers refreshes of dependent views.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentUser(): Validates authentication state
+             * - DataStore.getJob(): Retrieves job data
+             * - DataStore.createApplication(): Persists application to data store
+             * - UI.showToast(): Displays notification messages
+             * - Navigation.switchScreen(): Redirects unauthenticated users
+             * - Home.loadAppliedJobs(): Refreshes home view's applied jobs section
+             * - Admin.loadDashboardData(): Refreshes admin dashboard if applicable
+             * 
+             * Side Effects:
+             * - Creates new application record in data store
+             * - Displays success/error toast notifications
+             * - Updates apply button state (text, disabled, styling)
+             * - Triggers refresh of applied jobs in home view
+             * - Triggers admin dashboard refresh if company admin is viewing
+             * - May redirect unauthenticated users to home screen
+             * 
+             * @returns {void} Returns early without action if user not authenticated or job not found
+             */
+            applyForJob: function() {
+                // Verify user authentication before allowing application submission
+                const currentUser = DataStore.getCurrentUser();
+                if (!currentUser) {
+                    // User is not logged in: show error and redirect to home for sign-in
+                    UI.showToast('Please sign in to apply for jobs', 'error');
+                    Navigation.switchScreen('home');
+                    return;
+                }
+                
+                // Retrieve the complete job data for the currently viewed job
+                const job = DataStore.getJob(this.currentJobId);
+                // Guard clause: exit if job no longer exists in the system
+                if (!job) return;
+                
+                /**
+                 * Construct application data object with all necessary fields.
+                 * This follows the expected schema for DataStore.createApplication().
+                 * applicationId is not included here as it's generated by the DataStore.
+                 */
+                const applicationData = {
+                    jobId: job.jobId,                     // Reference to the job being applied for
+                    companyId: job.companyId,             // Reference to the company offering the job
+                    applicantEmail: currentUser.email,     // Unique identifier for the applicant
+                    applicantName: currentUser.name || 'Anonymous', // Display name, fallback if not set
+                    jobTitle: job.title,                  // Denormalized for quick display without joins
+                    companyName: job.companyName,         // Denormalized for quick display without joins
+                    appliedAt: new Date().toISOString()    // Timestamp in ISO format for consistent sorting
+                };
+                
+                // Persist the application to the data store
+                DataStore.createApplication(applicationData);
+                // Display success notification to the user
+                UI.showToast(`Application submitted for ${job.title}`, 'success');
+                
+                // Update button state
+                // Get reference to the apply button in the detail view
+                const applyBtn = document.getElementById('apply-job');
+                // Change button text to indicate successful application
+                applyBtn.textContent = 'Applied ✓';
+                // Disable button to prevent duplicate submissions
+                applyBtn.disabled = true;
+                // Update styling to show success state (green) instead of primary action color
+                applyBtn.classList.remove('bg-primary');
+                applyBtn.classList.add('bg-green-500');
+                
+                // Refresh home screen applied jobs
+                // This ensures the user sees their newly submitted application in the "Applied" section
+                Home.loadAppliedJobs();
+                
+                // Refresh admin dashboard if admin is viewing it
+                // Check if a company admin is currently authenticated
+                if (DataStore.getCurrentCompany()) {
+                    // Admin is logged in, refresh their dashboard to show new application for approval
+                    Admin.loadDashboardData();
+                }
+            },
+            
+            /**
+             * Toggles the saved status of a job for the current user.
+             * 
+             * This function handles both saving and unsaving jobs. It validates user authentication,
+             * checks the current saved state of the job, performs the appropriate save/remove operation,
+             * updates the UI to reflect the new state, and refreshes dependent views.
+             * 
+             * @param {string|null} jobId - Optional job ID. If null, uses this.currentJobId from the listing context
+             * @param {HTMLElement|null} buttonElement - Optional button element that triggered the action.
+             *                                            Currently unused but maintained for future extensibility.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentUser(): Validates authentication
+             * - DataStore.getJob(): Retrieves job data
+             * - DataStore.getUserSavedJobs(): Gets current saved jobs for the user
+             * - DataStore.removeSavedJob(): Removes job from saved collection
+             * - DataStore.saveJobForUser(): Adds job to saved collection
+             * - UI.showToast(): Displays confirmation messages
+             * - Navigation.switchScreen(): Redirects unauthenticated users
+             * - Home.loadSavedJobs(): Refreshes saved jobs in home view
+             * 
+             * Side Effects:
+             * - Modifies the user's saved jobs collection in data store
+             * - Updates save button text in detail view
+             * - Displays success/error toast notifications
+             * - Triggers refresh of saved jobs in home view
+             * - May trigger jobs listing refresh if currently filtering by 'saved'
+             * - May redirect unauthenticated users to home screen
+             */
+            toggleSaveJob: function(jobId = null, buttonElement = null) {
+                // Verify user authentication before allowing save operations
+                const currentUser = DataStore.getCurrentUser();
+                if (!currentUser) {
+                    // User is not logged in: show error and redirect to home for sign-in
+                    UI.showToast('Please sign in to save jobs', 'error');
+                    Navigation.switchScreen('home');
+                    return;
+                }
+                
+                // Determine which job ID to operate on: use provided ID or fall back to current context
+                const targetJobId = jobId || this.currentJobId;
+                // Retrieve the job object to verify it exists before attempting save operations
+                const job = DataStore.getJob(targetJobId);
+                // Guard clause: exit if job no longer exists in the system
+                if (!job) return;
+                
+                // Check if already saved
+                // Fetch the user's current saved jobs collection
+                const savedJobs = DataStore.getUserSavedJobs(currentUser.email);
+                // Determine if the target job is already in the saved collection
+                const isSaved = savedJobs.some(savedJob => savedJob.jobId === targetJobId);
+                
+                if (isSaved) {
+                    // Remove from saved
+                    DataStore.removeSavedJob(currentUser.email, targetJobId);
+                    UI.showToast('Job removed from saved', 'success');
+                    
+                    // Update UI
+                    // Get reference to the save button in the detail view
+                    const saveBtn = document.getElementById('save-job-detail');
+                    // Change button text to reflect that job can now be saved again
+                    saveBtn.innerHTML = 'Save Job';
+                } else {
+                    // Add to saved
+                    DataStore.saveJobForUser(currentUser.email, targetJobId);
+                    UI.showToast('Job saved successfully', 'success');
+                    
+                    // Update UI
+                    const saveBtn = document.getElementById('save-job-detail');
+                    // Change button text to indicate job is now saved and can be removed
+                    saveBtn.innerHTML = 'Remove from Saved';
+                }
+                
+                // Refresh home screen saved jobs
+                // This ensures the user sees their updated saved jobs collection in the home view
+                Home.loadSavedJobs();
+                
+                // Refresh jobs list if on saved filter
+                // Check if the current filter mode is set to show only saved jobs
+                if (this.currentFilter === 'saved') {
+                    // Reload the jobs listing to reflect the updated saved status
+                    // This will hide jobs that were just unsaved or show newly saved jobs
+                    this.loadJobs();
+                }
+            },
+            
+            /**
+             * Resets the job posting form to its initial empty state.
+             * 
+             * This function clears all input fields in the job posting form, resets the selected
+             * category and salary filter chips to their default unselected state, and hides the
+             * custom salary input field. It is typically called after successful job submission
+             * or when the user cancels/discards a job posting.
+             * 
+             * Dependencies:
+             * - Expects DOM elements with specific IDs to exist in the job posting form
+             * - Uses this.selectedCategory and this.selectedSalary component state
+             * 
+             * Side Effects:
+             * - Clears all text input values in the job posting form
+             * - Resets category and salary selection state variables to null
+             * - Removes active styling from all category and salary chips
+             * - Hides the custom salary input field
+             */
+            clearPostForm: function() {
+                // Clear all text input fields by setting their values to empty strings
+                document.getElementById('post-job-title').value = '';
+                document.getElementById('post-company').value = '';
+                document.getElementById('post-location').value = '';
+                document.getElementById('post-company-id').value = '';
+                document.getElementById('post-company-email').value = '';
+                document.getElementById('post-description').value = '';
+                document.getElementById('post-salary-custom').value = '';
+                
+                // Reset chips
+                // Clear selected state variables
+                this.selectedCategory = null;
+                this.selectedSalary = null;
+                // Iterate through all category and salary chips to reset their visual state
+                document.querySelectorAll('.category-chip, .salary-chip').forEach(chip => {
+                    // Remove active styling classes
+                    chip.classList.remove('bg-primary', 'text-white');
+                    // Apply default inactive styling
+                    chip.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-[#0e121b]', 'dark:text-white');
+                });
+                
+                // Hide the custom salary input field (it becomes visible only when 'custom' is selected)
+                document.getElementById('custom-salary-input').classList.add('hidden');
+            },
+            
+            /**
+             * Submits a new job posting to the system for approval.
+             * 
+             * This function collects form data, validates required fields, verifies company existence,
+             * constructs a job object with a unique ID, persists it to the data store with 'pending' status,
+             * and provides user feedback. Job postings require admin approval before becoming visible.
+             * 
+             * Dependencies:
+             * - DataStore.getCompany(): Validates company ID exists
+             * - DataStore.saveJob(): Persists job to data store
+             * - UI.showToast(): Displays validation errors and success messages
+             * - Admin.loadDashboardData(): Refreshes admin dashboard if admin is logged in
+             * 
+             * Side Effects:
+             * - Creates new job record in data store with 'pending' status
+             * - Displays success/error toast notifications
+             * - Clears the job posting form on success
+             * - Switches view back to job listing
+             * - Triggers admin dashboard refresh if company admin is logged in
+             * 
+             * @returns {void} Returns early with error toast if validation fails
+             */
+            submitJobPost: function() {
+                // Get form values
+                // Retrieve and trim all input values to remove extraneous whitespace
+                const title = document.getElementById('post-job-title').value.trim();
+                const company = document.getElementById('post-company').value.trim();
+                const location = document.getElementById('post-location').value.trim();
+                const companyId = document.getElementById('post-company-id').value.trim();
+                const companyEmail = document.getElementById('post-company-email').value.trim();
+                const description = document.getElementById('post-description').value.trim();
+                
+                // Get salary
+                // Process salary based on selection type
+                let salary = '';
+                if (this.selectedSalary === 'custom') {
+                    // User selected custom salary: get value from input field
+                    salary = document.getElementById('post-salary-custom').value.trim();
+                    // Ensure salary string starts with Nigerian Naira symbol for consistency
+                    if (!salary.startsWith('₦')) {
+                        salary = '₦' + salary;
+                    }
+                } else if (this.selectedSalary) {
+                    // User selected a predefined salary option
+                    salary = this.selectedSalary;
+                } else {
+                    // No salary selected: use default placeholder
+                    salary = '₦0 - ₦0 /yr';
+                }
+                
+                // Validate required fields
+                // Check that all mandatory fields have values and a category is selected
+                if (!title || !company || !location || !companyId || !companyEmail || !description || !this.selectedCategory) {
+                    UI.showToast('Please fill in all required fields', 'error');
+                    return;
+                }
+                
+                // Validate company ID exists
+                // Verify that the provided company ID corresponds to a registered company
+                const companyData = DataStore.getCompany(companyId);
+                if (!companyData) {
+                    UI.showToast('Invalid Company ID. Please check and try again.', 'error');
+                    return;
+                }
+                
+                // Create job object
+                /**
+                 * Generate a unique job ID using timestamp and random string.
+                 * Format: job_[timestamp]_[random string]
+                 * This ensures uniqueness across all job postings in the system.
+                 */
+                const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                /**
+                 * Construct job data object with all required fields.
+                 * This follows the expected schema for DataStore.saveJob().
+                 */
+                const jobData = {
+                    jobId: jobId,                         // Unique identifier for this job
+                    companyId: companyId,                 // Reference to the posting company
+                    title: title,                         // Job position title
+                    companyName: company,                 // Display name of the company
+                    location: location,                   // Job location (city, remote, etc.)
+                    category: this.selectedCategory,      // Job category for filtering
+                    salary: salary,                       // Salary range or specific amount
+                    description: description,             // Full job description text
+                    companyEmail: companyEmail,           // Contact email for applications
+                    postedAt: new Date().toISOString(),   // Timestamp of submission
+                    status: 'pending'                    // Requires admin approval before public visibility
+                };
+                
+                // Save job
+                // Persist the job data to the central data store
+                DataStore.saveJob(jobId, jobData);
+                // Notify user that submission was successful and explain next steps
+                UI.showToast('Job posted successfully! Awaiting admin approval.', 'success');
+                
+                // Clear form and switch to listing view
+                this.clearPostForm();
+                this.showView('listing');
+                
+                // If admin is logged in, refresh admin dashboard
+                // Check if a company admin is currently authenticated
+                if (DataStore.getCurrentCompany()) {
+                    // Admin is logged in, refresh their dashboard to show the new pending job
+                    Admin.loadDashboardData();
+                }
+            },
+            
+            /**
+             * Saves a job posting as a draft and returns to the listing view.
+             * 
+             * This is a lightweight function that provides user feedback and navigates away
+             * from the posting form without persisting the job data. The actual draft storage
+             * mechanism is not implemented in this function; it currently only simulates
+             * draft saving with a toast notification.
+             * 
+             * Note: This function does not currently persist draft data. The toast message
+             * indicates local storage, but no actual localStorage API calls are made.
+             * 
+             * Side Effects:
+             * - Displays a success toast notification
+             * - Switches the view to 'listing' mode
+             * 
+             * @todo Implement actual draft persistence if required by business requirements
+             */
+            saveDraft: function() {
+                UI.showToast('Draft saved locally', 'success');
+                this.showView('listing');
+            }
+        };
+
+        // ===== ADMIN DASHBOARD FUNCTIONALITY =====
+        /**
+         * Admin Dashboard Controller
+         * 
+         * Handles all company administrator functionality including authentication,
+         * company registration, job approval workflows, application review,
+         * user management, and analytics dashboard rendering.
+         * 
+         * This object contains methods for the complete admin lifecycle:
+         * - Authentication (sign in, sign up)
+         * - Dashboard data loading and statistics
+         * - Job approval/rejection workflows
+         * - Application review workflows
+         * - User management
+         * - Analytics (growth rate calculation)
+         * 
+         * Dependencies:
+         * - DataStore: All CRUD operations for companies, jobs, applications, users
+         * - UI: Toast notifications and UI utilities
+         * - Navigation: Screen switching and hamburger menu integration
+         * - SlideOver: Mobile menu component
+         * - Home: For refreshing views after state changes
+         */
+        const Admin = {
+            /**
+             * Initializes the admin dashboard event listeners and UI setup.
+             * 
+             * This function must be called when the admin screen becomes visible.
+             * It sets up all click and keypress event handlers for authentication tabs,
+             * form submissions, and the mobile hamburger menu.
+             * 
+             * Dependencies:
+             * - Assumes all DOM elements referenced exist in the document
+             * - Uses SlideOver.open() for mobile menu functionality
+             * 
+             * Side Effects:
+             * - Attaches multiple event listeners to DOM elements
+             * - Should only be called once to prevent duplicate listeners
+             */
+            init: function() {
+                // Auth tabs
+                // Set up tab switching between sign-in and sign-up forms
+                document.getElementById('admin-tab-signin').addEventListener('click', () => this.switchAuthTab('signin'));
+                document.getElementById('admin-tab-signup').addEventListener('click', () => this.switchAuthTab('signup'));
+                
+                // Auth forms
+                // Set up submission handlers for both authentication forms
+                document.getElementById('admin-signin-submit').addEventListener('click', () => this.signIn());
+                document.getElementById('admin-signup-submit').addEventListener('click', () => this.signUp());
+                
+                // Add user button
+                // Set up handler for adding new users to the company (admin function)
+                document.getElementById('admin-add-user-btn').addEventListener('click', () => this.addUser());
+                
+                // Allow Enter key submission
+                // Enable keyboard submission for sign-in form
+                document.getElementById('admin-signin-password').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.signIn();
+                });
+                
+                // Enable keyboard submission for sign-up form
+                document.getElementById('admin-signup-password').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.signUp();
+                });
+                
+                // Hamburger menu for admin screen
+                // Set up mobile menu toggle for the admin dashboard
+                document.getElementById('admin-hamburger-menu').addEventListener('click', () => SlideOver.open());
+            },
+            
+            /**
+             * Switches between the sign-in and sign-up tabs in the admin authentication panel.
+             * 
+             * This function manages the visual state of authentication tabs and form visibility.
+             * It applies active/inactive styling classes and toggles the hidden class on forms.
+             * 
+             * @param {string} tab - The tab to activate: 'signin' or 'signup'
+             * 
+             * Side Effects:
+             * - Modifies CSS classes on tab buttons to show active/inactive state
+             * - Toggles visibility of sign-in and sign-up forms
+             */
+            switchAuthTab: function(tab) {
+                // Get references to tab buttons and forms
+                const signinTab = document.getElementById('admin-tab-signin');
+                const signupTab = document.getElementById('admin-tab-signup');
+                const signinForm = document.getElementById('admin-signin-form');
+                const signupForm = document.getElementById('admin-signup-form');
+                
+                if (tab === 'signin') {
+                    // Activate sign-in tab with primary color and bottom border
+                    signinTab.classList.add('text-primary', 'border-b-2', 'border-primary');
+                    signinTab.classList.remove('text-[#4e6797]', 'dark:text-gray-400');
+                    // Deactivate sign-up tab
+                    signupTab.classList.remove('text-primary', 'border-b-2', 'border-primary');
+                    signupTab.classList.add('text-[#4e6797]', 'dark:text-gray-400');
+                    // Show sign-in form, hide sign-up form
+                    signinForm.classList.remove('hidden');
+                    signupForm.classList.add('hidden');
+                } else {
+                    // Activate sign-up tab
+                    signupTab.classList.add('text-primary', 'border-b-2', 'border-primary');
+                    signupTab.classList.remove('text-[#4e6797]', 'dark:text-gray-400');
+                    // Deactivate sign-in tab
+                    signinTab.classList.remove('text-primary', 'border-b-2', 'border-primary');
+                    signinTab.classList.add('text-[#4e6797]', 'dark:text-gray-400');
+                    // Show sign-up form, hide sign-in form
+                    signupForm.classList.remove('hidden');
+                    signinForm.classList.add('hidden');
+                }
+            },
+            
+            /**
+             * Authenticates a company administrator using email, company ID, and password.
+             * 
+             * This function validates the sign-in form inputs, verifies credentials against
+             * the data store, and establishes an admin session upon successful authentication.
+             * 
+             * Dependencies:
+             * - DataStore.getCompany(): Retrieves company by ID
+             * - DataStore.updateCurrentCompany(): Sets the authenticated company session
+             * - Navigation.updateAuthUI(): Updates UI to reflect authenticated state
+             * - UI.showToast(): Displays success message
+             * 
+             * Side Effects:
+             * - On success: Sets current company in session, clears form, hides error, shows toast
+             * - On failure: Displays error message, keeps form populated for correction
+             * 
+             * @returns {void} Returns early with error display if validation fails
+             */
+            signIn: function() {
+                // Collect form input values and trim whitespace from non-password fields
+                const email = document.getElementById('admin-signin-email').value.trim();
+                const companyId = document.getElementById('admin-signin-companyid').value.trim();
+                const password = document.getElementById('admin-signin-password').value;
+                const errorElement = document.getElementById('admin-signin-error');
+                
+                // Validate that all fields have values
+                if (!email || !companyId || !password) {
+                    errorElement.textContent = 'Please fill in all fields';
+                    errorElement.classList.remove('hidden');
+                    return;
+                }
+                
+                // Retrieve company data using the provided Company ID
+                const company = DataStore.getCompany(companyId);
+                
+                /**
+                 * Verify credentials:
+                 * - Company exists
+                 * - Provided email matches the company's admin email
+                 * - Provided password matches the stored password
+                 * 
+                 * Note: Passwords are stored in plain text. In a production environment,
+                 * this should be replaced with proper password hashing and comparison.
+                 */
+                if (company && company.adminEmail === email && company.password === password) {
+                    // Authentication successful
+                    DataStore.updateCurrentCompany(companyId);
+                    Navigation.updateAuthUI();
+                    UI.showToast('Admin access granted', 'success');
+                    errorElement.classList.add('hidden');
+                    
+                    // Clear form
+                    document.getElementById('admin-signin-email').value = '';
+                    document.getElementById('admin-signin-companyid').value = '';
+                    document.getElementById('admin-signin-password').value = '';
+                } else {
+                    // Authentication failed
+                    errorElement.textContent = 'Invalid credentials';
+                    errorElement.classList.remove('hidden');
+                }
+            },
+            
+            /**
+             * Registers a new company administrator account.
+             * 
+             * This function handles company registration by validating form inputs,
+             * generating a unique Company ID, creating company and admin user records,
+             * and providing the credentials to the user for future sign-in.
+             * 
+             * Dependencies:
+             * - DataStore.saveCompany(): Persists company data
+             * - DataStore.addCompanyUser(): Adds admin as first company user
+             * - UI.showToast(): Displays success message with Company ID
+             * 
+             * Side Effects:
+             * - Creates new company record in data store
+             * - Creates new user record (admin) associated with the company
+             * - Displays alert with Company ID (critical for user to save)
+             * - Clears form and switches to sign-in tab with credentials pre-filled
+             * 
+             * @returns {void} Returns early with error display if validation fails
+             */
+            signUp: function() {
+                // Collect and trim form input values
+                const companyName = document.getElementById('admin-signup-company').value.trim();
+                const email = document.getElementById('admin-signup-email').value.trim();
+                const password = document.getElementById('admin-signup-password').value;
+                const errorElement = document.getElementById('admin-signup-error');
+                
+                // Validate that all required fields are filled
+                if (!companyName || !email || !password) {
+                    errorElement.textContent = 'Please fill in all fields';
+                    errorElement.classList.remove('hidden');
+                    return;
+                }
+                
+                // Generate unique Company ID
+                // Format: comp_[timestamp]_[random string] - ensures global uniqueness
+                const companyId = 'comp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                // Save company
+                // Construct company data object with admin credentials
+                const companyData = {
+                    companyId: companyId,
+                    name: companyName,
+                    adminEmail: email,
+                    password: password  // Note: Plain text password - should be hashed in production
+                };
+                
+                // Persist company data to the data store
+                DataStore.saveCompany(companyId, companyData);
+                
+                // Add admin as first user
+                // This creates the admin user record and associates it with the company
+                DataStore.addCompanyUser(companyId, email);
+                
+                // Display success toast with the generated Company ID
+                UI.showToast(`Company account created! Your Company ID: ${companyId}`, 'success');
+                errorElement.classList.add('hidden');
+                
+                // Show Company ID to user
+                // Critical: Company ID is required for future sign-in and must be saved by the user
+                alert(`Company account created successfully!\n\nYour Company ID: ${companyId}\n\nIMPORTANT: Save this Company ID. You'll need it to sign in and post jobs.`);
+                
+                // Clear form
+                document.getElementById('admin-signup-company').value = '';
+                document.getElementById('admin-signup-email').value = '';
+                document.getElementById('admin-signup-password').value = '';
+                
+                // Switch to sign-in tab and pre-fill credentials for immediate use
+                this.switchAuthTab('signin');
+                document.getElementById('admin-signin-email').value = email;
+                document.getElementById('admin-signin-companyid').value = companyId;
+            },
+            
+            /**
+             * Loads and displays all dashboard data for the authenticated company.
+             * 
+             * This function fetches company-specific statistics, pending jobs, pending applications,
+             * user lists, and calculates growth metrics. It updates multiple UI sections with
+             * real-time data about the company's job posting and hiring activities.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentCompany(): Gets authenticated company session
+             * - DataStore.getCompanyJobs(): Retrieves all jobs for this company
+             * - DataStore.getCompanyUsers(): Retrieves all users associated with this company
+             * - DataStore.getCompanyApplications(): Retrieves all applications for this company's jobs
+             * 
+             * Side Effects:
+             * - Updates multiple DOM elements with statistical values
+             * - Triggers rendering of pending jobs list, applications list, and users list
+             * - Calculates and displays growth rate
+             * 
+             * @returns {void} Returns early without action if no company is authenticated
+             */
+            loadDashboardData: function() {
+                // Verify company authentication before loading sensitive data
+                const currentCompany = DataStore.getCurrentCompany();
+                if (!currentCompany) return;
+                
+                // Load company jobs
+                // Fetch all job postings associated with this company
+                const companyJobs = DataStore.getCompanyJobs(currentCompany.companyId);
+                
+                // Update stats
+                // Filter and count approved jobs for display
+                const approvedJobs = companyJobs.filter(job => job.status === 'approved');
+                document.getElementById('admin-total-jobs').textContent = approvedJobs.length;
+                
+                // Filter and count pending jobs requiring approval
+                const pendingJobs = companyJobs.filter(job => job.status === 'pending');
+                document.getElementById('admin-pending-jobs').textContent = pendingJobs.length;
+                document.getElementById('admin-pending-count').textContent = `${pendingJobs.length} pending`;
+                
+                // Load company users
+                // Fetch all non-admin users associated with this company
+                const companyUsers = DataStore.getCompanyUsers(currentCompany.companyId);
+                // Total users = companyUsers count + 1 admin account
+                document.getElementById('admin-total-users').textContent = companyUsers.length + 1;
+                
+                // Load pending jobs for approval
+                this.loadPendingJobs(pendingJobs);
+                
+                // Load pending applications for approval
+                this.loadPendingApplications(currentCompany.companyId);
+                
+                // Load company users list
+                this.loadCompanyUsers(companyUsers);
+                
+                // Calculate and display growth rate
+                this.calculateGrowthRate(currentCompany.companyId);
+            },
+            
+            /**
+             * Renders the list of pending jobs requiring approval.
+             * 
+             * This function dynamically creates job approval cards for each pending job,
+             * complete with job details and action buttons (Approve/Reject). It handles
+             * the empty state when no jobs are pending.
+             * 
+             * @param {Array} pendingJobs - Array of job objects with status='pending'
+             * 
+             * Dependencies:
+             * - Expects DOM element with ID 'admin-pending-jobs-container' to exist
+             * - Uses this.approveJob() and this.rejectJob() as click handlers
+             * 
+             * Side Effects:
+             * - Clears and repopulates the pending jobs container
+             * - Creates and attaches new DOM elements with event listeners
+             * - Formats dates using toLocaleDateString() for user-friendly display
+             */
+            loadPendingJobs: function(pendingJobs) {
+                const container = document.getElementById('admin-pending-jobs-container');
+                container.innerHTML = '';
+                
+                // Handle empty state
+                if (pendingJobs.length === 0) {
+                    container.innerHTML = `
+                        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                            <p class="text-gray-500 dark:text-gray-400">No pending jobs for approval</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Iterate through pending jobs and create cards
+                pendingJobs.forEach(job => {
+                    const jobCard = document.createElement('div');
+                    jobCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow';
+                    jobCard.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                                <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${job.title}</h4>
+                                <p class="text-sm font-normal text-[#4e6797] dark:text-gray-400 mt-1">${job.companyName} • ${job.location}</p>
+                                <div class="flex items-center justify-between mt-3">
+                                    <span class="text-primary font-bold text-sm bg-primary/10 px-3 py-1 rounded-full">${job.salary || 'Not specified'}</span>
+                                    <span class="text-xs text-gray-400 uppercase font-semibold">${new Date(job.postedAt).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-4">
+                            <button class="approve-btn flex-1 h-10 bg-primary text-white text-sm font-bold rounded-full shadow-sm hover:bg-primary/90 active:scale-95 transition-all" data-job-id="${job.jobId}">
+                                Approve
+                            </button>
+                            <button class="reject-btn flex-1 h-10 bg-transparent border-2 border-red-200 text-red-500 text-sm font-bold rounded-full hover:bg-red-50 active:scale-95 transition-all" data-job-id="${job.jobId}">
+                                Reject
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for approve/reject buttons
+                    const approveBtn = jobCard.querySelector('.approve-btn');
+                    const rejectBtn = jobCard.querySelector('.reject-btn');
+                    
+                    approveBtn.addEventListener('click', () => this.approveJob(job.jobId, jobCard));
+                    rejectBtn.addEventListener('click', () => this.rejectJob(job.jobId, jobCard));
+                    
+                    container.appendChild(jobCard);
+                });
+            },
+            
+            /**
+             * Renders the list of pending job applications requiring review.
+             * 
+             * This function fetches all applications for the company's jobs, filters for
+             * pending status, and dynamically creates application review cards. Each card
+             * shows applicant details, job information, and approval/rejection actions.
+             * 
+             * @param {string} companyId - Unique identifier of the authenticated company
+             * 
+             * Dependencies:
+             * - DataStore.getCompanyApplications(): Fetches applications for company jobs
+             * - DataStore.getJob(): Retrieves job details for each application
+             * - Expects DOM elements with IDs 'admin-pending-apps-container' and 'admin-pending-apps-count'
+             * - Uses this.approveApplication() and this.rejectApplication() as click handlers
+             * 
+             * Side Effects:
+             * - Updates the pending applications count badge
+             * - Clears and repopulates the pending applications container
+             * - Creates and attaches new DOM elements with event listeners
+             * - Skips applications where the associated job no longer exists
+             */
+            loadPendingApplications: function(companyId) {
+                // Fetch all applications for this company's jobs
+                const applications = DataStore.getCompanyApplications(companyId);
+                // Filter to show only applications with pending status
+                const pendingApplications = applications.filter(app => app.status === 'pending');
+                const container = document.getElementById('admin-pending-apps-container');
+                const countElement = document.getElementById('admin-pending-apps-count');
+                
+                container.innerHTML = '';
+                countElement.textContent = `${pendingApplications.length} pending`;
+                
+                // Handle empty state
+                if (pendingApplications.length === 0) {
+                    container.innerHTML = `
+                        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm text-center">
+                            <p class="text-gray-500 dark:text-gray-400">No pending applications for approval</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Iterate through pending applications and create cards
+                pendingApplications.forEach(app => {
+                    // Verify that the associated job still exists
+                    const job = DataStore.getJob(app.jobId);
+                    if (!job) return;
+                    
+                    const appCard = document.createElement('div');
+                    appCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow';
+                    appCard.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                                <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${app.jobTitle}</h4>
+                                <p class="text-sm font-normal text-[#4e6797] dark:text-gray-400 mt-1">Applicant: ${app.applicantName} (${app.applicantEmail})</p>
+                                <div class="flex items-center justify-between mt-3">
+                                    <span class="text-purple-500 font-bold text-sm bg-purple-500/10 px-3 py-1 rounded-full">Applied: ${new Date(app.appliedAt).toLocaleDateString()}</span>
+                                    <span class="text-xs text-gray-400 uppercase font-semibold">${job.location}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-4">
+                            <button class="approve-app-btn flex-1 h-10 bg-purple-500 text-white text-sm font-bold rounded-full shadow-sm hover:bg-purple-600 active:scale-95 transition-all" data-app-id="${app.applicationId}">
+                                Approve
+                            </button>
+                            <button class="reject-app-btn flex-1 h-10 bg-transparent border-2 border-red-200 text-red-500 text-sm font-bold rounded-full hover:bg-red-50 active:scale-95 transition-all" data-app-id="${app.applicationId}">
+                                Reject
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for approve/reject buttons
+                    const approveBtn = appCard.querySelector('.approve-app-btn');
+                    const rejectBtn = appCard.querySelector('.reject-app-btn');
+                    
+                    approveBtn.addEventListener('click', () => this.approveApplication(app.applicationId, appCard));
+                    rejectBtn.addEventListener('click', () => this.rejectApplication(app.applicationId, appCard));
+                    
+                    container.appendChild(appCard);
+                });
+            },
 
 </body>
 
 </html>
+
 
 
 
