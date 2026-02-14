@@ -4075,10 +4075,986 @@ const Jobs = {
                     container.appendChild(appCard);
                 });
             },
+                      /**
+             * Renders the list of company users in the admin dashboard.
+             * 
+             * This function displays all users associated with a company, including the admin account
+             * and all regular users. The admin card is rendered with special styling and disabled
+             * action buttons (cannot be edited/deleted), while regular user cards have functional
+             * delete buttons. Each user is displayed with their email, company name, and role badge.
+             * 
+             * @param {Array} users - Array of user email strings associated with the company
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentCompany(): Retrieves the authenticated company session
+             * - Expects DOM element with ID 'admin-users-container' to exist
+             * - Uses this.deleteUser() as click handler for delete buttons
+             * 
+             * Side Effects:
+             * - Clears and repopulates the users container with new DOM elements
+             * - Creates and attaches event listeners to delete buttons
+             * - Formats and displays the admin user first, followed by regular users
+             */
+            loadCompanyUsers: function(users) {
+                // Get reference to the container element where user cards will be inserted
+                const container = document.getElementById('admin-users-container');
+                // Retrieve current company data to display admin information
+                const currentCompany = DataStore.getCurrentCompany();
+                
+                // Clear any existing content to prevent duplication when refreshing
+                container.innerHTML = '';
+                
+                // Add admin card
+                // Create a card for the company administrator (always shown first)
+                const adminCard = document.createElement('div');
+                adminCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow';
+                adminCard.innerHTML = `
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${currentCompany.adminEmail}</h4>
+                                <p class="text-sm font-normal text-[#4e6797] dark:text-gray-400">${currentCompany.name}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-semibold text-green-500 bg-green-500/10 px-3 py-1 rounded-full">Admin</span>
+                    </div>
+                    <div class="flex gap-3">
+                        <button class="flex-1 h-10 bg-transparent border-2 border-primary/20 text-primary text-sm font-bold rounded-full hover:bg-primary/5 active:scale-95 transition-all" disabled>
+                            Edit
+                        </button>
+                        <button class="flex-1 h-10 bg-transparent border-2 border-red-200 text-red-500 text-sm font-bold rounded-full hover:bg-red-50 active:scale-95 transition-all" disabled>
+                            Delete
+                        </button>
+                    </div>
+                `;
+                container.appendChild(adminCard);
+                
+                // Add other users
+                // Iterate through regular user emails and create cards for each
+                users.forEach(userEmail => {
+                    const userCard = document.createElement('div');
+                    userCard.className = 'bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow';
+                    userCard.innerHTML = `
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-blue-500">person</span>
+                                </div>
+                                <div>
+                                    <h4 class="text-base font-bold text-[#0e121b] dark:text-white">${userEmail}</h4>
+                                    <p class="text-sm font-normal text-[#4e6797] dark:text-gray-400">${currentCompany.name}</p>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full">User</span>
+                        </div>
+                        <div class="flex gap-3">
+                            <button class="flex-1 h-10 bg-transparent border-2 border-primary/20 text-primary text-sm font-bold rounded-full hover:bg-primary/5 active:scale-95 transition-all">
+                                Edit
+                            </button>
+                            <button class="delete-user-btn flex-1 h-10 bg-transparent border-2 border-red-200 text-red-500 text-sm font-bold rounded-full hover:bg-red-50 active:scale-95 transition-all" data-user-email="${userEmail}">
+                                Delete
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add delete event listener
+                    // Attach click handler that calls deleteUser with the user's email and this card element
+                    const deleteBtn = userCard.querySelector('.delete-user-btn');
+                    deleteBtn.addEventListener('click', () => this.deleteUser(userEmail, userCard));
+                    
+                    container.appendChild(userCard);
+                });
+            },
+            
+            /**
+             * Calculates and displays the company's growth rate based on analytics data.
+             * 
+             * This function compares activity (jobs + applications) from the last 7 days
+             * against the previous 7 days to calculate a percentage growth rate. It handles
+             * edge cases like insufficient data, zero previous activity, and displays the
+             * result in the admin dashboard.
+             * 
+             * @param {string} companyId - Unique identifier of the company
+             * 
+             * Dependencies:
+             * - DataStore.getAnalyticsLog(): Retrieves historical analytics data
+             * - Expects DOM element with ID 'admin-growth-rate' to exist
+             * 
+             * Business Rules:
+             * - Growth rate = ((last7DaysTotal - prev7DaysTotal) / prev7DaysTotal) * 100
+             * - If prev7DaysTotal is 0 but last7DaysTotal > 0, growth rate = 100% (infinite growth)
+             * - If fewer than 14 days of data available, growth rate shows as 0%
+             * - Growth rate is formatted to one decimal place
+             * 
+             * Side Effects:
+             * - Updates the text content of the growth rate display element
+             */
+            calculateGrowthRate: function(companyId) {
+                // Retrieve historical analytics data for this company
+                const analyticsLog = DataStore.getAnalyticsLog(companyId);
+                
+                // Check if we have at least 14 days of data to calculate a meaningful growth rate
+                if (analyticsLog.length < 2) {
+                    document.getElementById('admin-growth-rate').textContent = '0%';
+                    return;
+                }
+                
+                // Get last 7 days and previous 7 days
+                // Slice the array to get the most recent 7 entries
+                const last7Days = analyticsLog.slice(-7);
+                // Get the 7 entries before the most recent week
+                const prev7Days = analyticsLog.slice(-14, -7);
+                
+                // Calculate totals
+                // Sum the totalJobs and totalApplications for each day in both periods
+                const last7DaysTotal = last7Days.reduce((sum, day) => sum + day.totalJobs + day.totalApplications, 0);
+                const prev7DaysTotal = prev7Days.reduce((sum, day) => sum + day.totalJobs + day.totalApplications, 0);
+                
+                // Calculate growth rate
+                let growthRate = 0;
+                if (prev7DaysTotal > 0) {
+                    // Standard growth calculation when previous period had activity
+                    growthRate = ((last7DaysTotal - prev7DaysTotal) / prev7DaysTotal) * 100;
+                } else if (last7DaysTotal > 0) {
+                    // Edge case: growth from zero activity (infinite growth shown as 100%)
+                    growthRate = 100;
+                }
+                
+                // Update the display with formatted growth rate (1 decimal place + % symbol)
+                document.getElementById('admin-growth-rate').textContent = `${growthRate.toFixed(1)}%`;
+            },
+            
+            /**
+             * Approves a pending job posting and updates the UI accordingly.
+             * 
+             * This function changes a job's status from 'pending' to 'approved', removes
+             * the job card from the pending list, shows a success notification, and
+             * refreshes dashboard statistics.
+             * 
+             * @param {string} jobId - Unique identifier of the job to approve
+             * @param {HTMLElement} jobCard - DOM element representing the job card to remove
+             * 
+             * Dependencies:
+             * - DataStore.updateJobStatus(): Updates job status in data store
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * 
+             * Side Effects:
+             * - Modifies job status in data store
+             * - Removes job card from DOM
+             * - Displays success toast
+             * - Triggers dashboard refresh
+             */
+            approveJob: function(jobId, jobCard) {
+                // Update job status to 'approved' in the data store
+                DataStore.updateJobStatus(jobId, 'approved');
+                // Remove the job card from the pending jobs list UI
+                jobCard.remove();
+                // Show success notification to the admin
+                UI.showToast('Job approved', 'success');
+                
+                // Update dashboard stats to reflect the change
+                this.loadDashboardData();
+            },
+            
+            /**
+             * Rejects a pending job posting after confirmation and updates the UI.
+             * 
+             * This function prompts the admin for confirmation, then changes a job's status
+             * from 'pending' to 'rejected', removes the job card from the pending list,
+             * shows a notification, and refreshes dashboard statistics.
+             * 
+             * @param {string} jobId - Unique identifier of the job to reject
+             * @param {HTMLElement} jobCard - DOM element representing the job card to remove
+             * 
+             * Dependencies:
+             * - DataStore.updateJobStatus(): Updates job status in data store
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * - window.confirm(): Shows confirmation dialog
+             * 
+             * Side Effects:
+             * - Modifies job status in data store (only if confirmed)
+             * - Removes job card from DOM (only if confirmed)
+             * - Displays success toast (only if confirmed)
+             * - Triggers dashboard refresh (only if confirmed)
+             */
+            rejectJob: function(jobId, jobCard) {
+                // Show confirmation dialog before proceeding with rejection
+                if (confirm('Are you sure you want to reject this job?')) {
+                    // Update job status to 'rejected' in the data store
+                    DataStore.updateJobStatus(jobId, 'rejected');
+                    // Remove the job card from the pending jobs list UI
+                    jobCard.remove();
+                    // Show success notification to the admin
+                    UI.showToast('Job rejected', 'success');
+                    
+                    // Update dashboard stats to reflect the change
+                    this.loadDashboardData();
+                }
+            },
+            
+            /**
+             * Approves a pending job application and updates the UI accordingly.
+             * 
+             * This function changes an application's status from 'pending' to 'approved',
+             * removes the application card from the pending list, shows a success notification,
+             * and refreshes dashboard statistics.
+             * 
+             * @param {string} applicationId - Unique identifier of the application to approve
+             * @param {HTMLElement} appCard - DOM element representing the application card to remove
+             * 
+             * Dependencies:
+             * - DataStore.updateApplicationStatus(): Updates application status in data store
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * 
+             * Side Effects:
+             * - Modifies application status in data store
+             * - Removes application card from DOM
+             * - Displays success toast
+             * - Triggers dashboard refresh
+             */
+            approveApplication: function(applicationId, appCard) {
+                // Update application status to 'approved' in the data store
+                DataStore.updateApplicationStatus(applicationId, 'approved');
+                // Remove the application card from the pending applications list UI
+                appCard.remove();
+                // Show success notification to the admin
+                UI.showToast('Application approved', 'success');
+                
+                // Update dashboard stats to reflect the change
+                this.loadDashboardData();
+            },
+            
+            /**
+             * Rejects a pending job application after confirmation and updates the UI.
+             * 
+             * This function prompts the admin for confirmation, then changes an application's
+             * status from 'pending' to 'rejected', removes the application card from the
+             * pending list, shows a notification, and refreshes dashboard statistics.
+             * 
+             * @param {string} applicationId - Unique identifier of the application to reject
+             * @param {HTMLElement} appCard - DOM element representing the application card to remove
+             * 
+             * Dependencies:
+             * - DataStore.updateApplicationStatus(): Updates application status in data store
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * - window.confirm(): Shows confirmation dialog
+             * 
+             * Side Effects:
+             * - Modifies application status in data store (only if confirmed)
+             * - Removes application card from DOM (only if confirmed)
+             * - Displays success toast (only if confirmed)
+             * - Triggers dashboard refresh (only if confirmed)
+             */
+            rejectApplication: function(applicationId, appCard) {
+                // Show confirmation dialog before proceeding with rejection
+                if (confirm('Are you sure you want to reject this application?')) {
+                    // Update application status to 'rejected' in the data store
+                    DataStore.updateApplicationStatus(applicationId, 'rejected');
+                    // Remove the application card from the pending applications list UI
+                    appCard.remove();
+                    // Show success notification to the admin
+                    UI.showToast('Application rejected', 'success');
+                    
+                    // Update dashboard stats to reflect the change
+                    this.loadDashboardData();
+                }
+            },
+            
+            /**
+             * Adds a new user to the company via email prompt.
+             * 
+             * This function prompts the admin to enter an email address for a new user,
+             * validates the email format, and adds it to the company's user list in the
+             * data store. After successful addition, it refreshes the dashboard to show
+             * the new user in the list.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentCompany(): Retrieves authenticated company session
+             * - DataStore.addCompanyUser(): Adds user to company in data store
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * - window.prompt(): Shows input dialog
+             * - window.alert(): Shows validation error
+             * 
+             * Side Effects:
+             * - Adds new user record to data store
+             * - Displays success toast
+             * - Triggers dashboard refresh to show new user
+             * - Returns early if user cancels prompt or enters invalid email
+             */
+            addUser: function() {
+                // Prompt admin for new user's email address
+                const email = prompt('Enter email for new user:');
+                // If admin cancels the prompt, exit without action
+                if (!email) return;
+                
+                // Validate email format using simple checks
+                if (!email.includes('@') || !email.includes('.')) {
+                    alert('Please enter a valid email address');
+                    return;
+                }
+                
+                // Retrieve current company to get company ID
+                const currentCompany = DataStore.getCurrentCompany();
+                if (!currentCompany) return;
+                
+                // Add the user to the company's user list in the data store
+                DataStore.addCompanyUser(currentCompany.companyId, email);
+                // Show success notification
+                UI.showToast(`User ${email} added`, 'success');
+                
+                // Refresh user list and dashboard stats
+                this.loadDashboardData();
+            },
+            
+            /**
+             * Deletes a user from the company after confirmation.
+             * 
+             * This function prompts the admin for confirmation, then removes a user from
+             * the company's user list by directly manipulating localStorage. After successful
+             * deletion, it removes the user card from the UI and refreshes dashboard statistics.
+             * 
+             * @param {string} userEmail - Email of the user to delete
+             * @param {HTMLElement} userCard - DOM element representing the user card to remove
+             * 
+             * Note: This function bypasses the DataStore abstraction and directly manipulates
+             * localStorage. This creates inconsistency with other data operations that use DataStore.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentCompany(): Retrieves authenticated company session
+             * - localStorage: Direct access for user list manipulation
+             * - UI.showToast(): Displays success notification
+             * - this.loadDashboardData(): Refreshes dashboard statistics
+             * - window.confirm(): Shows confirmation dialog
+             * 
+             * Side Effects:
+             * - Directly modifies localStorage (bypassing DataStore)
+             * - Removes user card from DOM
+             * - Displays success toast
+             * - Triggers dashboard refresh
+             * 
+             * @todo Refactor to use DataStore.removeCompanyUser() if available
+             */
+            deleteUser: function(userEmail, userCard) {
+                // Show confirmation dialog before proceeding with deletion
+                if (confirm(`Delete user ${userEmail}?`)) {
+                    // Retrieve current company to get company ID
+                    const currentCompany = DataStore.getCurrentCompany();
+                    if (!currentCompany) return;
+                    
+                    // Construct localStorage key for this company's users
+                    const key = `users_${currentCompany.companyId}`;
+                    // Retrieve current user list from localStorage
+                    let users = JSON.parse(localStorage.getItem(key)) || [];
+                    // Filter out the user to delete
+                    users = users.filter(email => email !== userEmail);
+                    // Save the updated user list back to localStorage
+                    localStorage.setItem(key, JSON.stringify(users));
+                    
+                    // Remove the user card from the UI
+                    userCard.remove();
+                    // Show success notification
+                    UI.showToast(`User ${userEmail} deleted`, 'success');
+                    
+                    // Update dashboard stats to reflect the change
+                    this.loadDashboardData();
+                }
+            }
+        };
+
+        // ===== SLIDE-OVER MENU FUNCTIONALITY =====
+        /**
+         * Slide-Over Menu Controller
+         * 
+         * Manages the slide-out navigation panel that appears from the side of the screen,
+         * typically on mobile devices or as an off-canvas menu. Handles opening, closing,
+         * and logout functionality with proper UI state updates.
+         * 
+         * Dependencies:
+         * - UI.updateSlideOverUser(): Updates user information display in the slide panel
+         * - DataStore.getCurrentCompany() / getCurrentUser(): For logout operations
+         * - Navigation.updateAuthUI(): Refreshes authentication UI state after logout
+         * - Navigation.screens: For checking current active screen
+         */
+        const SlideOver = {
+            /**
+             * Initializes the slide-over menu event listeners.
+             * 
+             * Sets up click handlers for the close button, overlay background,
+             * and logout button. Must be called once when the application initializes.
+             * 
+             * Dependencies:
+             * - Assumes DOM elements with specific IDs exist
+             * 
+             * Side Effects:
+             * - Attaches multiple event listeners to DOM elements
+             */
+            init: function() {
+                // Close buttons
+                // Set up close button inside the slide panel
+                document.getElementById('slide-close-menu').addEventListener('click', () => this.close());
+                // Set up overlay click to close (click outside the panel)
+                document.getElementById('slide-overlay').addEventListener('click', () => this.close());
+                
+                // Logout button
+                // Set up logout button click handler
+                document.getElementById('slide-logout-btn').addEventListener('click', () => this.logout());
+            },
+            
+            /**
+             * Opens the slide-over menu panel.
+             * 
+             * Adds active classes to both the panel and overlay to make them visible,
+             * and updates the user information displayed in the panel.
+             * 
+             * Side Effects:
+             * - Modifies CSS classes on slide panel and overlay elements
+             * - Triggers UI.updateSlideOverUser() to refresh displayed user info
+             */
+            open: function() {
+                // Add active class to slide panel to trigger visibility/transition
+                document.getElementById('slide-panel').classList.add('active');
+                // Add active class to overlay to show dimmed background
+                document.getElementById('slide-overlay').classList.add('active');
+                
+                // Update user info in the slide panel
+                UI.updateSlideOverUser();
+            },
+            
+            /**
+             * Closes the slide-over menu panel.
+             * 
+             * Removes active classes from both the panel and overlay to hide them.
+             * 
+             * Side Effects:
+             * - Modifies CSS classes on slide panel and overlay elements
+             */
+            close: function() {
+                // Remove active class from slide panel to hide it
+                document.getElementById('slide-panel').classList.remove('active');
+                // Remove active class from overlay to hide background dimming
+                document.getElementById('slide-overlay').classList.remove('active');
+            },
+            
+            /**
+             * Handles user logout from the slide-over menu.
+             * 
+             * This function signs out both company admin and regular user if they are
+             * authenticated, displays appropriate success messages, closes the slide panel,
+             * updates the authentication UI, and redirects to home if on admin screen.
+             * 
+             * Dependencies:
+             * - DataStore.getCurrentCompany(): Checks for authenticated company
+             * - DataStore.getCurrentUser(): Checks for authenticated user
+             * - DataStore.clearCurrentCompany(): Clears company session
+             * - DataStore.clearCurrentUser(): Clears user session
+             * - UI.showToast(): Displays logout confirmation
+             * - Navigation.updateAuthUI(): Updates UI to reflect logged-out state
+             * - Navigation.switchScreen(): Redirects if needed
+             * 
+             * Side Effects:
+             * - Clears authentication state from DataStore
+             * - Displays success toast messages
+             * - Closes slide panel
+             * - Updates navigation/auth UI
+             * - May switch screen to home if currently on admin screen
+             */
+            logout: function() {
+                // Check for authenticated company (admin) session
+                const currentCompany = DataStore.getCurrentCompany();
+                const currentUser = DataStore.getCurrentUser();
+                
+                if (currentCompany) {
+                    // Clear company admin session
+                    DataStore.clearCurrentCompany();
+                    UI.showToast('Company admin signed out', 'success');
+                }
+                
+                if (currentUser) {
+                    // Clear regular user session
+                    DataStore.clearCurrentUser();
+                    UI.showToast('User signed out', 'success');
+                }
+                
+                // Close the slide panel after logout
+                this.close();
+                // Update UI to reflect logged-out state
+                Navigation.updateAuthUI();
+                
+                // If on admin screen, switch to home
+                // Check if admin screen is currently active
+                if (Navigation.screens.admin.classList.contains('active')) {
+                    Navigation.switchScreen('home');
+                }
+            }
+        };
+
+        // ===== INITIALIZATION =====
+        /**
+         * Application Initialization
+         * 
+         * This event listener runs when the DOM is fully loaded and parsed.
+         * It initializes all major modules, sets up navigation event listeners,
+         * and prepares the application state for user interaction.
+         * 
+         * Dependencies:
+         * - All major modules (DataStore, Home, Jobs, Admin, SlideOver, Navigation, UI)
+         * - Assumes all DOM elements referenced exist at this point
+         * 
+         * Side Effects:
+         * - Initializes sample data for testing
+         * - Calls init() methods on all major modules
+         * - Sets up navigation click handlers
+         * - Updates auth UI and slide-over user info
+         * - May display welcome toast for first-time users
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize data store with sample data for testing
+            DataStore.initializeSampleData();
+            
+            // Initialize modules
+            Home.init();
+            Jobs.init();
+            Admin.init();
+            SlideOver.init();
+            
+            // Set up navigation event listeners
+            // Home navigation
+            document.getElementById('nav-home').addEventListener('click', () => Navigation.switchScreen('home'));
+
+            // Jobs navigation with authentication check
+            document.getElementById('nav-jobs').addEventListener('click', () => {
+                const currentUser = DataStore.getCurrentUser();
+                const currentCompany = DataStore.getCurrentCompany();
+                
+                if (!currentUser && !currentCompany) {
+                    // Not authenticated - switch to home and show auth gate
+                    Navigation.switchScreen('home');
+                    const homeAuthGate = document.getElementById('home-auth-gate');
+                    const homeAuthenticated = document.getElementById('home-authenticated');
+                    if (homeAuthGate) homeAuthGate.classList.remove('hidden');
+                    if (homeAuthenticated) homeAuthenticated.classList.add('hidden');
+                    UI.showToast('Please sign in to browse jobs', 'error');
+                } else {
+                    // Authenticated - proceed to jobs screen
+                    Navigation.switchScreen('jobs');
+                }
+            });
+
+            // Admin navigation with company authentication check
+            document.getElementById('nav-admin').addEventListener('click', () => {
+                const currentCompany = DataStore.getCurrentCompany();
+                
+                if (currentCompany) {
+                    // Company admin authenticated - show admin dashboard
+                    Navigation.switchScreen('admin');
+                } else {
+                    // Not authenticated as company admin - still show admin screen but with error
+                    Navigation.switchScreen('admin');
+                    UI.showToast('Company admin access required', 'error');
+                }
+            });
+            
+            // Initialize with home screen
+            Navigation.updateAuthUI();
+            UI.updateSlideOverUser();
+            
+            // Display welcome message if first time
+            // Check if localStorage is empty to detect first-time users
+            if (localStorage.length === 0) {
+                setTimeout(() => {
+                    UI.showToast('Welcome to Local Job Board! Start by creating an account.', 'success');
+                }, 1000);
+            }
+        });
+    </script>
+
+<script>
+/* ===============================
+   AUTH STATE MANAGEMENT
+================================ */
+
+/**
+ * Screen references for navigation management.
+ * Maps screen identifiers to their corresponding DOM elements.
+ * @type {Object.<string, HTMLElement>}
+ */
+const screens = {
+  home: document.getElementById("home-screen"),
+  jobs: document.getElementById("jobs-screen"),
+  admin: document.getElementById("admin-screen")
+};
+
+/**
+ * Hides all application screens by removing the 'active' class.
+ * Used before showing a specific screen to ensure only one screen is visible.
+ * 
+ * Side Effects:
+ * - Removes 'active' class from all screen elements
+ */
+function hideAllScreens() {
+  Object.values(screens).forEach(s => s.classList.remove("active"));
+}
+
+/**
+ * Shows the specified screen by adding the 'active' class.
+ * 
+ * @param {HTMLElement} screen - The screen element to show
+ * 
+ * Side Effects:
+ * - Calls hideAllScreens() to hide other screens
+ * - Adds 'active' class to the target screen
+ */
+function showScreen(screen) {
+  hideAllScreens();
+  screen.classList.add("active");
+}
+
+/* ===============================
+   USER AUTH
+================================ */
+
+/**
+ * Retrieves the currently authenticated user from localStorage.
+ * 
+ * @returns {Object|null} User object with name and email properties, or null if not authenticated
+ * 
+ * Dependencies:
+ * - localStorage key 'currentUser' is expected to contain serialized user data
+ */
+function getCurrentUser() {
+  return JSON.parse(localStorage.getItem("currentUser"));
+}
+
+/**
+ * Persists the authenticated user to localStorage.
+ * 
+ * @param {Object} user - User object containing authentication data
+ * 
+ * Side Effects:
+ * - Writes to localStorage under the 'currentUser' key
+ */
+function setCurrentUser(user) {
+  localStorage.setItem("currentUser", JSON.stringify(user));
+}
+
+/**
+ * Logs out the current user by clearing their session.
+ * 
+ * Side Effects:
+ * - Removes 'currentUser' from localStorage
+ * - Reloads the page to reset application state
+ */
+function logoutUser() {
+  localStorage.removeItem("currentUser");
+  location.reload();
+}
+
+/* ===============================
+   ADMIN AUTH
+================================ */
+
+/**
+ * Retrieves the currently authenticated admin from localStorage.
+ * 
+ * @returns {Object|null} Admin object with email and companyId, or null if not authenticated
+ * 
+ * Dependencies:
+ * - localStorage key 'currentAdmin' is expected to contain serialized admin data
+ */
+function getCurrentAdmin() {
+  return JSON.parse(localStorage.getItem("currentAdmin"));
+}
+
+/**
+ * Persists the authenticated admin to localStorage.
+ * 
+ * @param {Object} admin - Admin object containing authentication data
+ * 
+ * Side Effects:
+ * - Writes to localStorage under the 'currentAdmin' key
+ */
+function setCurrentAdmin(admin) {
+  localStorage.setItem("currentAdmin", JSON.stringify(admin));
+}
+
+/**
+ * Logs out the current admin by clearing their session.
+ * 
+ * Side Effects:
+ * - Removes 'currentAdmin' from localStorage
+ * - Reloads the page to reset application state
+ */
+function logoutAdmin() {
+  localStorage.removeItem("currentAdmin");
+  location.reload();
+}
+
+/* ===============================
+   INITIAL BOOT CHECK
+================================ */
+
+/**
+ * Initial authentication check on page load.
+ * 
+ * Determines the authentication state and shows the appropriate screen:
+ * - If admin is authenticated: shows admin screen directly
+ * - If user is authenticated: shows home screen with personalized welcome
+ * - If no authentication: shows home screen with sign-in gate
+ * 
+ * Dependencies:
+ * - getCurrentUser(), getCurrentAdmin() for auth state
+ * - screens object for screen references
+ * - DOM elements for auth gates and welcome messages
+ * 
+ * Side Effects:
+ * - Shows/hides screens and auth gates
+ * - Updates welcome message text
+ * - Called automatically when DOM is loaded
+ */
+document.addEventListener("DOMContentLoaded", () => {
+  const user = getCurrentUser();
+  const admin = getCurrentAdmin();
+
+  if (admin) {
+    // Admin authenticated - show admin dashboard
+    showScreen(screens.admin);
+    document.getElementById("admin-gate").classList.add("hidden");
+    document.getElementById("admin-content").classList.remove("hidden");
+    return;
+  }
+
+  if (user) {
+    // Regular user authenticated - show home with user content
+    showScreen(screens.home);
+    document.getElementById("home-auth-gate").classList.add("hidden");
+    document.getElementById("home-authenticated").classList.remove("hidden");
+    document.getElementById("home-welcome").textContent =
+      `Welcome back, ${user.name}`;
+    return;
+  }
+
+  // NO AUTH — FORCE SIGN IN
+  // Show home screen with sign-in form visible
+  showScreen(screens.home);
+  document.getElementById("home-auth-gate").classList.remove("hidden");
+  document.getElementById("home-authenticated").classList.add("hidden");
+});
+
+/* ===============================
+   SIGN IN / SIGN UP
+================================ */
+
+/**
+ * Handles user sign-in form submission.
+ * 
+ * Validates email and password inputs, creates a user object from the email,
+ * and persists the authentication state.
+ * 
+ * Dependencies:
+ * - Global DOM references (assumed to be defined elsewhere)
+ * - setCurrentUser() for auth persistence
+ * - location.reload() to refresh application state
+ * 
+ * Side Effects:
+ * - Shows/hides error message based on validation
+ * - Sets current user in localStorage
+ * - Reloads page on successful sign-in
+ */
+document.getElementById("signin-submit").onclick = () => {
+  const email = signinEmail.value.trim();
+  const password = signinPassword.value.trim();
+
+  if (!email || !password) {
+    signinError.classList.remove("hidden");
+    return;
+  }
+
+  setCurrentUser({ name: email.split("@")[0], email });
+  location.reload();
+};
+
+/**
+ * Handles user sign-up form submission.
+ * 
+ * Validates name, email, and password inputs, creates a user object,
+ * and persists the authentication state.
+ * 
+ * Dependencies:
+ * - Global DOM references (assumed to be defined elsewhere)
+ * - setCurrentUser() for auth persistence
+ * - location.reload() to refresh application state
+ * 
+ * Side Effects:
+ * - Shows/hides error message based on validation
+ * - Sets current user in localStorage
+ * - Reloads page on successful sign-up
+ */
+document.getElementById("signup-submit").onclick = () => {
+  const name = signupName.value.trim();
+  const email = signupEmail.value.trim();
+  const password = signupPassword.value.trim();
+
+  if (!name || !email || !password) {
+    signupError.classList.remove("hidden");
+    return;
+  }
+
+  setCurrentUser({ name, email });
+  location.reload();
+};
+
+/* ===============================
+   ADMIN SIGN IN / SIGN UP
+================================ */
+
+/**
+ * Handles admin sign-in form submission.
+ * 
+ * Validates email, company ID, and password inputs, creates an admin object,
+ * and persists the authentication state.
+ * 
+ * Dependencies:
+ * - Global DOM references (assumed to be defined elsewhere)
+ * - setCurrentAdmin() for auth persistence
+ * - location.reload() to refresh application state
+ * 
+ * Side Effects:
+ * - Shows/hides error message based on validation
+ * - Sets current admin in localStorage
+ * - Reloads page on successful sign-in
+ */
+document.getElementById("admin-signin-submit").onclick = () => {
+  const email = adminSigninEmail.value.trim();
+  const companyId = adminSigninCompanyid.value.trim();
+  const password = adminSigninPassword.value.trim();
+
+  if (!email || !companyId || !password) {
+    adminSigninError.classList.remove("hidden");
+    return;
+  }
+
+  setCurrentAdmin({ email, companyId });
+  location.reload();
+};
+
+/**
+ * Handles admin sign-up form submission.
+ * 
+ * Validates company name, email, and password inputs, generates a unique
+ * Company ID, displays it to the user, creates an admin object,
+ * and persists the authentication state.
+ * 
+ * Company ID format: "CMP-" + 6-character random alphanumeric string
+ * 
+ * Dependencies:
+ * - Global DOM references (assumed to be defined elsewhere)
+ * - setCurrentAdmin() for auth persistence
+ * - location.reload() to refresh application state
+ * - window.alert() to display generated Company ID
+ * 
+ * Side Effects:
+ * - Shows/hides error message based on validation
+ * - Generates and displays Company ID via alert
+ * - Sets current admin in localStorage
+ * - Reloads page on successful sign-up
+ */
+document.getElementById("admin-signup-submit").onclick = () => {
+  const company = adminSignupCompany.value.trim();
+  const email = adminSignupEmail.value.trim();
+  const password = adminSignupPassword.value.trim();
+
+  if (!company || !email || !password) {
+    adminSignupError.classList.remove("hidden");
+    return;
+  }
+
+  const companyId = "CMP-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  alert("Your Company ID: " + companyId);
+
+  setCurrentAdmin({ company, email, companyId });
+  location.reload();
+};
+
+/* ===============================
+   LOGOUT
+================================ */
+
+/**
+ * Global logout handler for the slide-out menu.
+ * 
+ * Calls both user and admin logout functions to ensure complete
+ * session termination regardless of authentication type.
+ * 
+ * Dependencies:
+ * - logoutUser(), logoutAdmin() for session clearing
+ * 
+ * Side Effects:
+ * - Clears all authentication data from localStorage
+ * - Reloads the page (via logoutUser/logoutAdmin functions)
+ */
+document.getElementById("slide-logout-btn").onclick = () => {
+  logoutUser();
+  logoutAdmin();
+};
+
+/**
+ * Handles page show events (including back/forward navigation).
+ * 
+ * Ensures authentication state is consistent when returning to the page
+ * via browser history. If no user or admin is authenticated, forces the
+ * home screen with sign-in gate visible.
+ * 
+ * Dependencies:
+ * - getCurrentUser(), getCurrentAdmin() for auth state
+ * - screens object for screen references
+ * - DOM elements for auth gates
+ * 
+ * Side Effects:
+ * - Shows/hides screens and auth gates based on auth state
+ * - Called on initial page load and when using browser navigation
+ */
+window.addEventListener("pageshow", () => {
+  const user = getCurrentUser();
+  const admin = getCurrentAdmin();
+
+  if (!user && !admin) {
+    hideAllScreens();
+    screens.home.classList.add("active");
+
+    document.getElementById("home-auth-gate").classList.remove("hidden");
+    document.getElementById("home-authenticated").classList.add("hidden");
+  }
+});
+
+/**
+ * Emergency session clear - DEVELOPMENT ONLY
+ * 
+ * This code forcibly clears any existing authentication state on page load.
+ * It appears to be intended for development/testing to ensure a clean state.
+ * 
+ * WARNING: This will log out any authenticated user immediately.
+ * This should be removed in production.
+ * 
+ * Side Effects:
+ * - Removes currentUser and currentAdmin from localStorage on every page load
+ */
+localStorage.removeItem("currentUser");
+localStorage.removeItem("currentAdmin");
+
+</script>
 
 </body>
 
 </html>
+
 
 
 
